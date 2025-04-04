@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "plasmidcanvas"
-version = "1.0.0"
+version = "1.1.0"
 description = "A graphics package for creating customised plasmid maps"
 authors = ["th0mr <thomrobinson76@gmail.com>"]
 license = "MIT"

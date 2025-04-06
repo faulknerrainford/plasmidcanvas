@@ -82,7 +82,18 @@ class Plasmid:
         """Takes a base pair value, returns the degree on the plasmid circle that it is located at"""    
         return (basepair / self.base_pairs) * 360
 
-    
+    def remove_feature(self, name):
+        index = None
+        features = self.get_features()
+
+        for i in range(len(features)):
+            if features[i].get_name() == name:
+                index = i
+                break
+        
+        if index is not None:
+            self._features.pop(index)
+
     def plot(self) -> Figure:
         """
         Plots all features added to the Plasmid object onto a matplotlib Figure.

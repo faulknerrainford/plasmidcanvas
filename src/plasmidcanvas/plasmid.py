@@ -81,19 +81,6 @@ class Plasmid:
     def _basepair_to_degrees(self, basepair: int) -> float:
         """Takes a base pair value, returns the degree on the plasmid circle that it is located at"""    
         return (basepair / self.base_pairs) * 360
-    
-    def remove_feature(self, name):
-        """Takes a name and removes it from the features list"""
-        features = self.get_features()
-        index = None
-
-        for x in range(len(features)):
-            if features[x].get_name() == name:
-                index = x
-                break
-        
-        if index:
-            features.pop(index)
 
     
     def plot(self) -> Figure:

@@ -17,6 +17,8 @@ class Plasmid:
     _DEFAULT_CIRCLE_CENTER: tuple[float, float] = (0, 0)
     _DEFAULT_PLASMID_LINE_WIDTH: float = _DEFAULT_CIRCLE_RADIUS * 0.10
     _DEFAULT_PLASMID_LINE_WIDTH_SF: float = 1
+    _DEFAULT_FEATURE_WIDTH: float = _DEFAULT_PLASMID_LINE_WIDTH
+    _DEFAULT_FEATURE_WIDTH_SF: float = 1
     _DEFAULT_PLASMID_NAME: str = "Untitled Plasmid"
     _DEFAULT_PLASMID_COLOR: str = "grey"
 
@@ -33,10 +35,13 @@ class Plasmid:
     base_pairs: int
     _center: tuple[float, float] = _DEFAULT_CIRCLE_CENTER
     _radius: float = _DEFAULT_CIRCLE_RADIUS
+    _feature_radius: float = _DEFAULT_CIRCLE_RADIUS
     _features: MutableSequence[Feature] = []
 
     _plasmid_line_width: float = _DEFAULT_PLASMID_LINE_WIDTH
     _plasmid_line_width_sf: float = _DEFAULT_PLASMID_LINE_WIDTH_SF
+    _feature_width: float = _DEFAULT_FEATURE_WIDTH
+    _feature_width_sf: float = _DEFAULT_FEATURE_WIDTH_SF
     _marker_style: str = _DEFAULT_MARKER_STYLE
     _marker_distance_sf: float = _DEFAULT_MARKER_DISTANCE_SF
     _number_of_markers: int = _DEFAULT_NUMBER_OF_MARKERS
@@ -145,6 +150,9 @@ class Plasmid:
         sorted_multi_pair_features = sorted(multi_pair_features, key=lambda feature: feature.start_pair)
         non_multi_pair_features = [feature for feature in self.get_features() if not issubclass(feature.__class__, MultiPairFeature)]
 
+        if not self.get_feature_width() == self.get_plasmid_line_width():
+            self._feature_radius = self._radius + (self.get_feature_width()/2)
+
         for feature in sorted_multi_pair_features:
 
             # A quick check to see if the feature's font size has changed from the default, if not, apply Plasmid
@@ -170,16 +178,16 @@ class Plasmid:
                 orbit = 0
 
             ORBIT_GAP_SF = 1.25
-            orbit_radius = self._radius - (self.get_plasmid_line_width() * ORBIT_GAP_SF * orbit)
+            orbit_radius = self._radius - (self.get_feature_width() * ORBIT_GAP_SF * orbit)
 
             feature.set_orbit(orbit)
 
-            feature._render(ax, self.get_base_pairs(), self._DEFAULT_CIRCLE_CENTER, orbit_radius, self.get_plasmid_line_width())
+            feature._render(ax, self.get_base_pairs(), self._DEFAULT_CIRCLE_CENTER, orbit_radius, self.get_plasmid_line_width(), self.get_feature_width())
 
             placed_features.append(feature)
 
         for feature in non_multi_pair_features:
-            feature._render(ax, self.get_base_pairs(), self._DEFAULT_CIRCLE_CENTER, self._radius, self.get_plasmid_line_width())
+            feature._render(ax, self.get_base_pairs(), self._DEFAULT_CIRCLE_CENTER, self._feature_radius, self.get_plasmid_line_width(), self.get_feature_width())
             placed_features.append(feature)
 
         fig.tight_layout()
@@ -503,7 +511,7 @@ class Plasmid:
         """
         return self._plasmid_line_width_sf
 
-    def set_plasmid_line_width_sf(self, line_width_sf: float) -> None:
+    def set_plasmid_line_width_sf(self, line_width_sf: float, feature_lock=True) -> None:
         """
         Set the scale factor for the plasmid circle line width.
 
@@ -512,8 +520,12 @@ class Plasmid:
         line_width_sf : float
             The scale factor to set for the plasmid circle line width.
             e.g. 1.5 makes the plasmid circle 1.5 times as thick as the default
+        feature_lock: bool
+            If true features width is kept consistent with line width
         """
         self._plasmid_line_width_sf = line_width_sf
+        if feature_lock:
+            self._feature_width_sf = line_width_sf
 
     def get_plasmid_line_width(self) -> float:
         """
@@ -526,7 +538,7 @@ class Plasmid:
         """
         return self._plasmid_line_width * self.get_plasmid_line_width_sf()
 
-    def set_plasmid_line_width(self, plasmid_line_width: float) -> None:
+    def set_plasmid_line_width(self, plasmid_line_width: float, feature_lock=True) -> None:
         """
         Set the plasmid line width.
 
@@ -534,6 +546,8 @@ class Plasmid:
         ----------
         plasmid_line_width : float
             The plasmid line width to set.
+        feature_lock: bool
+            If true features width is kept consistent with line width
 
         Note
         ----
@@ -541,6 +555,58 @@ class Plasmid:
         Increasing both values could create a very thick plasmid circle!
         """
         self._plasmid_line_width = plasmid_line_width
+        if feature_lock:
+            self._feature_width = plasmid_line_width
+
+    def get_feature_width_sf(self) -> float:
+        """
+        Get the scale factor for the feature width.
+
+        Returns
+        -------
+        line_width_sf : float
+            The scale factor for the feature width.
+        """
+        return self._feature_width_sf
+
+    def set_feature_width_sf(self, feature_width_sf: float) -> None:
+        """
+        Set the scale factor for the plasmid circle line width.
+
+        Parameters
+        ----------
+        feature_width_sf : float
+            The scale factor to set for the plasmid circle line width.
+            e.g. 1.5 makes the plasmid circle 1.5 times as thick as the default
+        """
+        self._feature_width_sf = feature_width_sf
+
+    def get_feature_width(self) -> float:
+        """
+        Get the feature width.
+
+        Returns
+        -------
+        feature_width : float
+            The feature width.
+        """
+        return self._feature_width * self.get_feature_width_sf()
+
+    def set_feature_width(self, feature_width: float) -> None:
+        """
+        Set the feature width.
+
+        Parameters
+        ----------
+        feature_width : float
+            The feature width to set.
+
+        Note
+        ----
+        Either use set_plasmid_line_width or set_plasmid_line_width_sf.
+        Increasing both values could create a very thick plasmid circle!
+        """
+        self._feature_width = feature_width
 
     def get_marker_style(self) -> str:
         """
@@ -711,4 +777,7 @@ class Plasmid:
             The font size of feature labels to set for the plasmid. Given as a pt value.
         """
         self._feature_label_font_size = feature_label_font_size
+
+
+#   TODO Add set feature label to include or disclude basepairs.
 

@@ -178,7 +178,7 @@ class Plasmid:
                 orbit = 0
 
             ORBIT_GAP_SF = 1.25
-            orbit_radius = self._radius - (self.get_feature_width() * ORBIT_GAP_SF * orbit)
+            orbit_radius = self._feature_radius - (self.get_feature_width() * ORBIT_GAP_SF * orbit)
 
             feature.set_orbit(orbit)
 

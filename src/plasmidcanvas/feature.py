@@ -816,7 +816,7 @@ class RectangleFeature(MultiPairFeature):
         # 3 - Place the wedge
 
         # Amount to stretch the arrow outwards / inwards to achieve the line width scale effect
-        adjust_amount = ((p_line_width * self.get_line_width_scale_factor()) - p_line_width) / 2
+        adjust_amount = ((f_width * self.get_line_width_scale_factor()) - f_width) / 2
         line_width_adjusted_radius = p_radius + adjust_amount
         rectangle = Wedge(center=p_center, r=line_width_adjusted_radius, theta1=theta_1, theta2=theta_2,
                           width=(f_width * self.get_line_width_scale_factor()), color=self.color)
@@ -968,11 +968,11 @@ class ArrowFeature(DirectionalMultiPairFeature):
 
         # ======== Work out three points to assemble the traingle =======
 
-        triangle_front_xy = ((p_center[0] + p_radius - (p_line_width / 2)) * np.sin(angle_of_arrow_end_radians),
-                             (p_center[1] + p_radius - (p_line_width / 2)) * np.cos(angle_of_arrow_end_radians))
+        triangle_front_xy = ((p_center[0] + p_radius - (f_width / 2)) * np.sin(angle_of_arrow_end_radians),
+                             (p_center[1] + p_radius - (f_width / 2)) * np.cos(angle_of_arrow_end_radians))
 
         # Amount to stretch the arrow outwards / inwards to achieve the line width scale effect
-        adjust_amount = ((p_line_width * self.get_line_width_scale_factor()) - p_line_width) / 2
+        adjust_amount = ((f_width * self.get_line_width_scale_factor()) - f_width) / 2
 
         triangle_point_inner_circle_xy = (((p_center[0] + p_radius - f_width - adjust_amount) * np.sin(
             angle_of_arrow_start_radians)),

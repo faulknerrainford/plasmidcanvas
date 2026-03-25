@@ -1,15 +1,13 @@
 from __future__ import annotations
-
-import math
-from collections.abc import MutableSequence
+from typing import MutableSequence
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle, Wedge
 import numpy as np
 
-from plasmideasel.feature import Feature, LabelBase, MultiPairFeature, RectangleFeature, ArrowFeature, RestrictionSite, SinglePairFeature, SinglePairLabel
-from plasmideasel._utils import DEFAULT_LABEL_FONT_SIZE, DEFAULT_LABEL_TEXT_STYLE
+from plasmidcanvas.feature import Feature, LabelBase, MultiPairFeature, RectangleFeature, ArrowFeature, RestrictionSite, SinglePairFeature, SinglePairLabel
+from plasmidcanvas._utils import DEFAULT_LABEL_FONT_SIZE, DEFAULT_LABEL_TEXT_STYLE
 
 
 def draw_plasmid(df, title, bp_size, style="default"):
@@ -21,137 +19,15 @@ def draw_plasmid(df, title, bp_size, style="default"):
         plasmid.set_plasmid_line_width_sf(0.1, feature_lock=False)
         plasmid.set_feature_label_style("text_only")
     if df is not None:
-        label_collision_adjustments = check_label_collisions(df, bp_size)
-        df["label_adjustments"] = label_collision_adjustments
         for row in df.iterrows():
             row = row[1]
-            if row["show"]:
-                if abs(row["start"]-row["end"])<10 or row["direction"]==0:
-                    feature = RectangleFeature(row["name"], row["start"], row["end"])
-                else:
-                    feature = ArrowFeature(row["name"], row["start"], row["end"], direction=row["direction"])
-                feature.set_color(row['colour'])
-                feature.set_label_adjustment(row["label_adjustments"])
-                plasmid.add_feature(feature)
+            if abs(row["start"]-row["end"])<10 or row["direction"]==0:
+                feature = RectangleFeature(row["name"], row["start"], row["end"])
+            else:
+                feature = ArrowFeature(row["name"], row["start"], row["end"], direction=row["direction"])
+            feature.set_color(row['colour'])
+            plasmid.add_feature(feature)
     return plasmid
-
-
-def check_label_collisions(df, bp_size):
-    collision_zone, collision_starts = get_collision_zones(df, bp_size)
-    collision_adj = [[1, 1, 0] for _ in range(len(collision_zone))]
-    for i in collision_starts:
-        if i != collision_starts[-1]:
-            end = collision_starts[collision_starts.index(i) + 1]
-        else:
-            end = len(collision_zone)
-        if collision_zone[i]:
-            collision_indexes = [i, 0]
-            for j in range(i, end):
-                if j == end-1:
-                    collision_indexes[1] = j
-                    break
-                elif collision_zone[i] != collision_zone[j]:
-                    collision_indexes[1] = j-1
-                    break
-            k = collision_indexes[0]
-            for k_loop in range(collision_indexes[0], collision_indexes[1]+1):
-                zone = collision_zone[k]
-                if zone in [2, 5]:
-                    # based on number of 2 collisions above and below the 90 degree point add and subtract vertical
-                    # space
-                    equator_start = k
-                    equator_end = collision_indexes[1]
-                    for search in range(k, (collision_indexes[1]+1)):
-                        if collision_zone[search] != zone:
-                            equator_end = search
-                            break
-                    # move to either side of 0 so int shifts should be increments for modifications
-                    shift = equator_start + (math.floor(0.5*(equator_end-equator_start)))
-                    equator_adj_end = equator_end - shift
-                    equator_adj_start =  equator_start - shift
-                    inc_range = range(equator_adj_start, equator_adj_end+1)
-                    for a in range(len(inc_range)):
-                        adj = a + equator_start
-                        if zone == 2:
-                            collision_adj[adj][2] = -inc_range[a]
-                        else:
-                            collision_adj[adj][2] = inc_range[a]
-                    if equator_end == collision_indexes[1]:
-                        break
-                    else:
-                        k = equator_end + 1
-                else:
-                    col_start = k
-                    col_end = collision_indexes[1]
-                    for search in range(k, (collision_indexes[1] + 1)):
-                        if collision_zone[search] != zone:
-                            col_end = search
-                            break
-                    scale_incr = 1 / (col_end - col_start)
-                    if zone in [1, 4]:
-                        range_incr = np.arange(2, 1-(scale_incr*0.1), -scale_incr)
-                    else:
-                        range_incr = np.arange(1, 2+(scale_incr*0.1), scale_incr)
-                    for b in range(len(range_incr)):
-                        adj = b + col_start
-                        collision_adj[adj][0] = range_incr[b]
-                    if col_end == collision_indexes[1]:
-                        break
-                    else:
-                        k = col_end + 1
-            if collision_indexes[1] >= len(collision_zone) - 1:
-                break
-    return collision_adj
-
-
-def get_collision_zones(df, bp_size) -> tuple[list, list]:
-    prox_bp = math.ceil(bp_size / 60)
-    midpoints = df["start"] + ((df["end"] - df["start"])/2)
-    collision_zone = [0 for _ in range(len(midpoints))]
-    collision_starts = []
-    collision_init = True
-    current_point = midpoints[0]
-    halfway_tip = False
-    big_zone_bp = math.floor(bp_size * (80 / 360))
-    small_zone_bp = math.floor(bp_size * 0.5) - (2 * big_zone_bp)
-    zone = 0
-    # Determine if a collision occurs and which zone the point is in when it collides
-    for m in range(1, len(midpoints)):
-        if midpoints[m] < big_zone_bp:
-            zone = 1
-        elif big_zone_bp < midpoints[m] < (big_zone_bp + small_zone_bp):
-            zone = 2
-        elif (big_zone_bp + small_zone_bp) < midpoints[m] < math.floor(bp_size / 2):
-            zone = 3
-        elif math.floor(bp_size / 2) < midpoints[m] < bp_size - (big_zone_bp + small_zone_bp):
-            zone = 4
-            if current_point < bp_size / 2:
-                halfway_tip = True
-                collision_init = True
-        elif bp_size - (big_zone_bp + small_zone_bp) < midpoints[m] < bp_size - big_zone_bp:
-            zone = 5
-            if current_point < bp_size / 2:
-                halfway_tip = True
-                collision_init = True
-        else:
-            zone = 6
-            if current_point < bp_size / 2:
-                halfway_tip = True
-                collision_init = True
-        if midpoints[m] - current_point < prox_bp and not halfway_tip:
-            if collision_init:
-                collision_starts.append(m-1)
-                collision_init = False
-            collision_zone[m] = zone
-            if collision_zone[m - 1] == 0:
-                collision_zone[m - 1] = zone
-        elif halfway_tip:
-            halfway_tip = False
-            collision_init = False
-        else:
-            collision_init = True
-        current_point = midpoints[m]
-    return collision_zone, collision_starts
 
 
 class Plasmid:
@@ -175,8 +51,6 @@ class Plasmid:
 
     SUPPORTED_TICK_STYLES = ["auto", "none"]
     _DEFAULT_TICK_STYLE = "auto"
-    _DEFAULT_TITLE_FONT_SIZE: int = 14
-    _DEFAULT_MARKER_LABEL_FONT_SIZE: int = 7
 
     name: str = _DEFAULT_PLASMID_NAME
     base_pairs: int
@@ -197,8 +71,6 @@ class Plasmid:
     _tick_color: str = _DEFAULT_PLASMID_COLOR
     _feature_label_font_size: int = DEFAULT_LABEL_FONT_SIZE
     _feature_label_style: str = DEFAULT_LABEL_TEXT_STYLE
-    _title_font_size: int = _DEFAULT_TITLE_FONT_SIZE
-    _marker_label_font_size: int = _DEFAULT_MARKER_LABEL_FONT_SIZE
 
     def __init__(self, name: str, base_pairs: int) -> None:
         """
@@ -220,7 +92,7 @@ class Plasmid:
         --------
         Creating a Plasmid::
 
-            from plasmideasel.plasmid import Plasmid
+            from plasmidcanvas.plasmid import Plasmid
             myplasmid = Plasmid("pBR322", 4361)
         """
         if base_pairs <= 0:
@@ -255,7 +127,7 @@ class Plasmid:
         -------
         Obtaining a plasmid Figure::
 
-            from plasmideasel.plasmid import Plasmid
+            from plasmidcanvas.plasmid import Plasmid
             myplasmid = Plasmid("pBR322", 4361)
             figure = myplasmid.plot()
             proceed to view or work with figure...
@@ -294,10 +166,10 @@ class Plasmid:
 
         multi_pair_features = [feature for feature in self.get_features() if issubclass(feature.__class__, MultiPairFeature)]
 
-        # Sort multi-pair features by size (largest first) to prioritize larger features in lower orbits
-        # This ensures larger features are placed in orbit 0 when possible, with smaller features pushed to higher orbits
-        # Tie-breaking by start position for consistent, deterministic placement
-        sorted_multi_pair_features = sorted(multi_pair_features, key=lambda feature: (-feature.length(), feature.start_pair))
+        # Sorting gives the proper cascading effect when placing multipair features in orbit
+        # Also provides non-determinism, as otherwise the order in which features are added by the user
+        # impacts the layout.
+        sorted_multi_pair_features = sorted(multi_pair_features, key=lambda feature: feature.start_pair)
         non_multi_pair_features = [feature for feature in self.get_features() if not issubclass(feature.__class__, MultiPairFeature)]
 
         if not self.get_feature_width() == self.get_plasmid_line_width():
@@ -428,7 +300,7 @@ class Plasmid:
         for degree in degrees_to_place_markers:
             x, y = ((self._center[0] + self._radius * self._marker_distance_sf * np.sin(np.deg2rad(degree))),
                     (self._center[1] + self._radius * self._marker_distance_sf * np.cos(np.deg2rad(degree))))
-            ax.text(x, y, s=f"{self._degrees_to_basepair(degree)}", horizontalalignment='center', fontstyle='italic', alpha=0.5, fontsize=self._marker_label_font_size)
+            ax.text(x, y, s=f"{self._degrees_to_basepair(degree)}", horizontalalignment='center', fontstyle='italic', alpha=0.5, fontsize=7)
 
     def _place_ticks_at_degrees(self, ax: Axes, degrees_to_place_ticks: list[float]) -> None:
         """
@@ -473,7 +345,7 @@ class Plasmid:
         --------
         To save a plasmid to a png::
 
-            from plasmideasel.plasmid import Plasmid
+            from plasmidcanvas.plasmid import Plasmid
             myplasmid = Plasmid("pBR322", 4361)
             myplasmid.savefig("figure.png")
         """
@@ -504,7 +376,7 @@ class Plasmid:
         # Make a horizontally aligned label in the center of the circle
         # Create bold plasmid name line and non-bold base pair line, using \bf math text
         plasmid_label_text = r"$\bf{" + self.name + "}$\n" + f"{self.base_pairs}bp"
-        ax.annotate(plasmid_label_text, xy=center, ha="center", va="center", fontsize=self._title_font_size)
+        ax.annotate(plasmid_label_text, xy=center, ha="center", va="center")
         ax.add_patch(plasmid_circle)
 
     def add_feature(self, feature: Feature) -> None:
@@ -516,7 +388,7 @@ class Plasmid:
         ----------
         feature : Feature
             A Feature object to add to the plasmid. e.g RectangleFeature, ArrowFeature, SinglePairLabel, RestrictionSite etc.
-            See the documentation for plasmideasel.feature to see the availble Feature types and their usage.
+            See the documentation for plasmidcanvas.feature to see the availble Feature types and their usage.
 
         Raises
         ------
@@ -532,8 +404,8 @@ class Plasmid:
         --------
         Adding an Arrow Featue::
 
-            from plasmideasel.plasmid import Plasmid
-            from plasmideasel.feature import ArrowFeature, RectangleFeature, RestrictionSite
+            from plasmidcanvas.plasmid import Plasmid
+            from plasmidcanvas.feature import ArrowFeature, RectangleFeature, RestrictionSite
             myplasmid = Plasmid("pBR322", 4361)
             myplasmid.savefig("figure.png")
 
@@ -958,50 +830,6 @@ class Plasmid:
             Label style used for plasmid features.
         """
         self._feature_label_style = feature_label_style
-
-    def get_title_font_size(self) -> int:
-        """
-        Get the font size of the plasmid title.
-
-        Returns
-        -------
-        title_font_size : int
-            The font size of the title used for the plasmid. Given as a pt value.
-        """
-        return self._title_font_size
-
-    def set_title_font_size(self, title_font_size: int) -> None:
-        """
-        Set the font size of the plasmid title.
-
-        Parameters
-        ----------
-        title_font_size : int
-            The font size of the title to set for the plasmid. Given as a pt value.
-        """
-        self._title_font_size = title_font_size
-
-    def get_marker_label_font_size(self) -> int:
-        """
-        Get the font size of the marker labels.
-
-        Returns
-        -------
-        marker_label_font_size : int
-            The font size of the marker labels used for the plasmid. Given as a pt value.
-        """
-        return self._marker_label_font_size
-
-    def set_marker_label_font_size(self, marker_label_font_size: int) -> None:
-        """
-        Set the font size of the marker labels.
-
-        Parameters
-        ----------
-        marker_label_font_size : int
-            The font size of the marker labels to set for the plasmid. Given as a pt value.
-        """
-        self._marker_label_font_size = marker_label_font_size
 
 #   TODO Add set feature label to include or disclude basepairs.
 

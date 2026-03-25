@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import MutableSequence
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
@@ -6,7 +7,27 @@ from matplotlib.patches import Circle, Wedge
 import numpy as np
 
 from plasmidcanvas.feature import Feature, LabelBase, MultiPairFeature, RectangleFeature, ArrowFeature, RestrictionSite, SinglePairFeature, SinglePairLabel
-from plasmidcanvas._utils import DEFAULT_LABEL_FONT_SIZE
+from plasmidcanvas._utils import DEFAULT_LABEL_FONT_SIZE, DEFAULT_LABEL_TEXT_STYLE
+
+
+def draw_plasmid(df, title, bp_size, style="default"):
+    plasmid = Plasmid(title, bp_size)
+    if style == 'minimalist':
+        plasmid.set_color('black')
+        plasmid.set_tick_style('none')
+        plasmid.set_marker_style('none')
+        plasmid.set_plasmid_line_width_sf(0.1, feature_lock=False)
+        plasmid.set_feature_label_style("text_only")
+    if df is not None:
+        for row in df.iterrows():
+            row = row[1]
+            if abs(row["start"]-row["end"])<10 or row["direction"]==0:
+                feature = RectangleFeature(row["name"], row["start"], row["end"])
+            else:
+                feature = ArrowFeature(row["name"], row["start"], row["end"], direction=row["direction"])
+            feature.set_color(row['colour'])
+            plasmid.add_feature(feature)
+    return plasmid
 
 
 class Plasmid:
@@ -49,6 +70,7 @@ class Plasmid:
     _plasmid_color: str = _DEFAULT_PLASMID_COLOR
     _tick_color: str = _DEFAULT_PLASMID_COLOR
     _feature_label_font_size: int = DEFAULT_LABEL_FONT_SIZE
+    _feature_label_style: str = DEFAULT_LABEL_TEXT_STYLE
 
     def __init__(self, name: str, base_pairs: int) -> None:
         """
@@ -162,6 +184,9 @@ class Plasmid:
             if feature.get_label_font_size() == DEFAULT_LABEL_FONT_SIZE:
                 feature.set_label_font_size(self.get_feature_label_font_size())
 
+            if feature.get_label_text_style() == DEFAULT_LABEL_TEXT_STYLE:
+                feature.set_label_text_style(self.get_feature_label_style())
+
             pre_placement_orbit = orbit
 
             # Get all current placed multi pair features
@@ -187,6 +212,10 @@ class Plasmid:
             placed_features.append(feature)
 
         for feature in non_multi_pair_features:
+
+            if feature.get_label_text_style() == DEFAULT_LABEL_TEXT_STYLE:
+                feature.set_label_text_style(self.get_feature_label_style())
+
             feature._render(ax, self.get_base_pairs(), self._DEFAULT_CIRCLE_CENTER, self._feature_radius, self.get_plasmid_line_width(), self.get_feature_width())
             placed_features.append(feature)
 
@@ -322,7 +351,7 @@ class Plasmid:
         """
         # TODO - Path validation
         fig = self.plot()
-        fig.savefig(fname=filename, bbox_inches="tight")
+        fig.savefig(fname=filename, bbox_inches="tight", format=filename.split(".")[-1])
         print(f"Plasmid map saved to {filename}")
 
     def _render(self, ax: Axes) -> None:
@@ -778,6 +807,29 @@ class Plasmid:
         """
         self._feature_label_font_size = feature_label_font_size
 
+    def get_feature_label_style(self) -> str:
+        """
+        Get the feature label style for the plasmid, defaults to 'bases'.
+        This will dictate if it adds base pairs, 'bases', to the label or not, 'text_only'.
+
+        Returns
+        -------
+        feature_label_style : str
+            Label style used for plasmid features.
+        """
+        return self._feature_label_style
+
+    def set_feature_label_style(self, feature_label_style) -> None:
+        """
+        Set the feature label style for the plasmid, defaults to 'bases'.
+        This will dictate if it adds base pairs, 'bases', to the label or not, 'text_only'.
+
+        Parameters
+        ----------
+        feature_label_style : str
+            Label style used for plasmid features.
+        """
+        self._feature_label_style = feature_label_style
 
 #   TODO Add set feature label to include or disclude basepairs.
 

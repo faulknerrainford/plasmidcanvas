@@ -1,3 +1,4 @@
+from __future__ import annotations
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.patches import FancyArrowPatch, Polygon, RegularPolygon, Wedge
@@ -5,7 +6,7 @@ import numpy as np
 
 from plasmidcanvas._utils import circular_length, circular_midpoint, to_counter_clockwise
 from plasmidcanvas._curvedtext import CurvedText
-from plasmidcanvas._utils import DEFAULT_LABEL_FONT_SIZE
+from plasmidcanvas._utils import DEFAULT_LABEL_FONT_SIZE, DEFAULT_LABEL_TEXT_STYLE
 
 # ==================================
 # Abstract Feature Classes
@@ -20,8 +21,9 @@ class Feature:
     name: str
     color: str = _DEFAULT_COLOR
     text_size: int = DEFAULT_LABEL_FONT_SIZE
+    label_text_style: str = DEFAULT_LABEL_TEXT_STYLE
 
-    def __init__(self, name: str, text_size: int = 7) -> None:
+    def __init__(self, name: str, text_size: int = 7, label_style: str = 'bases') -> None:
         """
         Initializes the Feature object.
 
@@ -34,6 +36,7 @@ class Feature:
         """
         self.set_name(name)
         self.set_text_size(text_size)
+        self.set_label_style(label_style)
 
     def _render(self, ax: Axes, p_total_base_pairs: int, p_center, p_radius: float, p_line_width: float, f_width: float) -> None:
         """
@@ -122,12 +125,35 @@ class Feature:
         """
         self.text_size = text_size
 
+    def get_label_text_style(self) -> str:
+        """
+        Get the text size of the feature.
+
+        Returns
+        -------
+        str
+            The text size of the feature.
+        """
+        return self.label_text_style
+
+    def set_label_style(self, label_text_style: str) -> None:
+        """
+        Set the text size of the feature.
+
+        Parameters
+        ----------
+        label_text_style : str
+            The text size of the feature.
+        """
+        self.label_text_style = label_text_style
+
 
 class MultiPairFeature(Feature):
     """
     An abstract Feauture type that spans multiple base pairs
     """
     _label_font_size: int = DEFAULT_LABEL_FONT_SIZE
+    _label_text_style: str = DEFAULT_LABEL_TEXT_STYLE
 
     start_pair: int
     end_pair: int
@@ -256,6 +282,28 @@ class MultiPairFeature(Feature):
         """
         self._label_font_size = font_size
 
+    def get_label_text_style(self) -> str:
+        """
+        Get the text size of the feature.
+
+        Returns
+        -------
+        str
+            The text size of the feature.
+        """
+        return self.label_text_style
+
+    def set_label_text_style(self, label_text_style: str) -> None:
+        """
+        Set the text size of the feature.
+
+        Parameters
+        ----------
+        label_text_style : str
+            The text size of the feature.
+        """
+        self.label_text_style = label_text_style
+
     def get_label_styles(self) -> list[str]:
         """
         Get the list of label styles associated with the feature.
@@ -298,7 +346,7 @@ class MultiPairFeature(Feature):
         self.label_style = label_styles
 
     def _get_feature_labels(self, p_total_base_pairs: int, start_pair: int = None, end_pair: int = None,
-                            styles: list[str] = None) -> None:
+                            styles: list[str] = None, text_style: str = 'bases') -> None:
         """
         Get the labels associated with the feature based off the value of label_style
 
@@ -312,6 +360,8 @@ class MultiPairFeature(Feature):
             The ending base pair.
         styles : list[str], optional
             The list of label styles. Used to force the creation of a specific type of label if needed.
+        text_style: str, optional
+            The text styles to use.
 
         Returns
         -------
@@ -336,7 +386,7 @@ class MultiPairFeature(Feature):
             if style == "on-circle":
                 # Adds a curved label
                 label_text = f"{self.get_name()}"
-                label = CurvedMultiPairLabel(label_text, start_pair, end_pair)
+                label = CurvedMultiPairLabel(label_text, start_pair, end_pair, text_style)
                 label.set_orbit(self.get_orbit())
                 # TODO: possibly reset this to work with feature text size
                 label.set_font_size(self._label_font_size)
@@ -347,8 +397,11 @@ class MultiPairFeature(Feature):
                 # Calculate the midpoint, accounting for features that pass through 0 using circular_midpoint
                 label_base_pair_location: int = round(
                     circular_midpoint(start_pair, end_pair, p_total_base_pairs))
-                label_text = f"{self.get_name()} ({start_pair} - {end_pair})"
-                label = SinglePairLabel(label_text, label_base_pair_location)
+                if self.label_text_style == "bases":
+                    label_text = f"{self.get_name()} ({start_pair} - {end_pair})"
+                else:
+                    label_text = f"{self.get_name()}"
+                label = SinglePairLabel(label_text, label_base_pair_location, text_style)
                 label._orbit_ofset = self.get_orbit()
                 label.set_line_color(self.color)
                 label.set_font_size(self._label_font_size)
@@ -364,7 +417,7 @@ class SinglePairFeature(Feature):
     """
     base_pair: int
 
-    def __init__(self, name: str, base_pair: int) -> None:
+    def __init__(self, name: str, base_pair: int, text_style: str) -> None:
         """
         Initializes the SinglePairFeature object.
 
@@ -374,9 +427,12 @@ class SinglePairFeature(Feature):
             The name of the feature.
         base_pair : int
             The base pair associated with the feature.
+        text_style : str
+            The label text styles to use.
         """
         super().__init__(name)
         self.set_base_pair(base_pair)
+        self.set_label_style(text_style)
 
     def get_base_pair(self) -> int:
         """
@@ -509,8 +565,9 @@ class SinglePairLabel(SinglePairFeature, LabelBase):
 
     # Used internally for making label lines longer for internal orbits
     _orbit_ofset: int = 0
+    label_text_style: str = 'bases'
 
-    def __init__(self, name: str, base_pair: int) -> None:
+    def __init__(self, name: str, base_pair: int, text_style: str) -> None:
         """
         Initializes the SinglePairLabel object.
 
@@ -521,9 +578,10 @@ class SinglePairLabel(SinglePairFeature, LabelBase):
         base_pair : int
             The base pair associated with the label.
         """
-        super().__init__(name=name, base_pair=base_pair)
+        super().__init__(name=name, base_pair=base_pair, text_style=text_style)
         LabelBase.__init__(self, name)
         self.set_font_size(self.text_size)
+        self.label_text_style = text_style
 
     def _render(self, ax: Axes, p_total_base_pairs: int, p_center, p_radius: float, p_line_width: float, f_width: float) -> None:
         """
@@ -617,7 +675,7 @@ class RestrictionSite(SinglePairLabel):
     """
     A class representing a restriction site on a plasmid as an extention of SinglePairLabel.
     """
-    def __init__(self, text: str, base_pair: int) -> None:
+    def __init__(self, text: str, base_pair: int, text_style: str = 'bases') -> None:
         """
         Initializes the RestrictionSite object. Creating a label in the format "<text> (<base_pair>)". 
         For more control over the label text, use SinglePairLabel.
@@ -628,9 +686,22 @@ class RestrictionSite(SinglePairLabel):
             The text to display on the restiction site. e.g. "BspMI", "BfuAI, BspMI", "Multiple Cloning Site"
         base_pair : int
             The base pair position of the restriction site.
+        text_style  :   str
+            The text style of the label.
         """
-        super().__init__(text, base_pair)
-        self.set_label_text(f"{self.get_name()} ({self.get_base_pair()})")
+        super().__init__(text, base_pair, text_style)
+        if self.label_text_style == "bases":
+            self.set_label_text(f"{self.get_name()} ({self.get_base_pair()})")
+        else:
+            self.set_label_text(f"{self.get_name()}")
+
+    def set_label_text_style(self, style: str) -> None:
+        self.label_text_style = style
+        if self.label_text_style == "bases":
+            self.set_label_text(f"{self.get_name()} ({self.get_base_pair()})")
+        else:
+            self.set_label_text(f"{self.get_name()}")
+
 
 
 class CurvedMultiPairLabel(MultiPairFeature, LabelBase):
@@ -642,7 +713,7 @@ class CurvedMultiPairLabel(MultiPairFeature, LabelBase):
     # Set to either 'bottom' or 'top' to snap charecters to the bottom or top of the curve
     _alignment_to_curve: str = "bottom"
 
-    def __init__(self, name: str, start_pair: int, end_pair: int) -> None:
+    def __init__(self, name: str, start_pair: int, end_pair: int, text_style: str = 'bases') -> None:
         """
         Initializes the CurvedMultiPairLabel object.
 
@@ -658,6 +729,7 @@ class CurvedMultiPairLabel(MultiPairFeature, LabelBase):
         super().__init__(name, start_pair, end_pair)
         LabelBase.__init__(self, name)
         self.set_font_size(self.text_size)
+        self.label_text_style = text_style
 
     def _render(self, ax: Axes, p_total_base_pairs: int, p_center, p_radius: float, p_line_width: float, f_width: float) -> None:
         """

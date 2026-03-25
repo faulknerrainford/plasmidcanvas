@@ -3,8 +3,9 @@ A copy of example 1 from the usage guide showing how to build pBR322 in plasmidc
 This file can be ran individually or as part of the test
 """
 
-from plasmidcanvas.plasmid import Plasmid
-from plasmidcanvas.feature import ArrowFeature, RectangleFeature, RestrictionSite
+from plasmidcanvas import Plasmid
+from plasmidcanvas import ArrowFeature, RectangleFeature, RestrictionSite
+
 
 def get_basic_plasmid() -> Plasmid:
     basic_plasmid = Plasmid("pBR322_1", 4361)
@@ -41,4 +42,4 @@ def get_basic_plasmid() -> Plasmid:
 
     return basic_plasmid
 
-#get_basic_plasmid().save_to_file("basic_plasmid.png")
+get_basic_plasmid().save_to_file("basic_plasmid.svg")

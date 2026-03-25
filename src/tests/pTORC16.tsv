@@ -1,0 +1,18 @@
+pTORC16 (pBR322 Pleu500.1 mKalama1 lacO1.1 lacO1.2 Pleu500.2 mRaspberry (EcoRI) TANDEM)
+6218
+index	name	type	start	end	direction	colour
+1	Ptet	promoter	5	45	1	#ff6600
+2	Pantitet	promoter	40	80	-1	#ff6600
+3	tetA	resistance_gene	86	1276	1	#ff6600
+4	rop	origin_of_replication	1915	2106	1	#bebebe
+5	pMB1 ori	origin_of_replication	2534	3122	0	#bebebe
+6	lacO1.2	TF_binding_site	3168	3188	-1	#2ad4ff
+7	bla	resistance_gene	3314	4174	-1	#1a1a1a
+8	Pbla	promoter	4221	4246	-1	#1a1a1a
+9	mKalama1	reporter_gene	4383	5102	-1	#0000ff
+10	Pleu500.1	promoter	5103	5303	-1	#00d4aa
+11	lacO1.1	TF_binding_site	5304	5324	0	#2ad4ff
+12	EcoRI	restriction_site	5325	5330	0	#bebebe
+13	mRaspberry	reporter_gene	5331	6011	-1	#c83771
+14	Pleu500.2	promoter	6012	6212	-1	#00d4aa
+15	EcoRI	restriction_site	6213	6218	0	#bebebe

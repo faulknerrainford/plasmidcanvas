@@ -3,6 +3,7 @@ from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.patches import FancyArrowPatch, Polygon, RegularPolygon, Wedge
 import numpy as np
+import math
 
 from plasmidcanvas._utils import circular_length, circular_midpoint, to_counter_clockwise
 from plasmidcanvas._curvedtext import CurvedText
@@ -150,7 +151,7 @@ class Feature:
 
 class MultiPairFeature(Feature):
     """
-    An abstract Feauture type that spans multiple base pairs
+    An abstract Feauture var_type that spans multiple base pairs
     """
     _label_font_size: int = DEFAULT_LABEL_FONT_SIZE
     _label_text_style: str = DEFAULT_LABEL_TEXT_STYLE
@@ -359,7 +360,7 @@ class MultiPairFeature(Feature):
         end_pair : int, optional
             The ending base pair.
         styles : list[str], optional
-            The list of label styles. Used to force the creation of a specific type of label if needed.
+            The list of label styles. Used to force the creation of a specific var_type of label if needed.
         text_style: str, optional
             The text styles to use.
 
@@ -565,6 +566,7 @@ class SinglePairLabel(SinglePairFeature, LabelBase):
 
     # Used internally for making label lines longer for internal orbits
     _orbit_ofset: int = 0
+    # TODO: Add second offset for features close to other features (used alternatingly if multiple in a row are too close)
     label_text_style: str = 'bases'
 
     def __init__(self, name: str, base_pair: int, text_style: str) -> None:
@@ -603,6 +605,7 @@ class SinglePairLabel(SinglePairFeature, LabelBase):
             The width of the features connected to the plasmid.
         """
         degrees = (self.get_base_pair() / p_total_base_pairs) * 360
+        # TODO: Use degrees to determine quadrant
         radians = np.deg2rad(degrees)
 
         # Calculate the x and y of the inner coordinates of the line
@@ -622,6 +625,8 @@ class SinglePairLabel(SinglePairFeature, LabelBase):
 
         ax.plot([start_xy[0], end_xy[0]], [start_xy[1], end_xy[1]], color=self.get_line_color(),
                 alpha=self._DEFAULT_LINE_ALPHA, zorder=3)
+        # TODO: Add horizontal line off the end of the main line to help position labels
+        # TODO: modify text start based on position around circle to move label off the line
         ax.text(x=end_xy[0], y=end_xy[1], s=self.get_label_text(), fontsize=self.get_font_size(),
                 color=self.font_color, horizontalalignment=align, verticalalignment="center", zorder=3)
 
@@ -701,7 +706,6 @@ class RestrictionSite(SinglePairLabel):
             self.set_label_text(f"{self.get_name()} ({self.get_base_pair()})")
         else:
             self.set_label_text(f"{self.get_name()}")
-
 
 
 class CurvedMultiPairLabel(MultiPairFeature, LabelBase):
@@ -1015,9 +1019,9 @@ class ArrowFeature(DirectionalMultiPairFeature):
         # This avoids distortion if the arrows are too long, but allows smaller features to still have
         # a visable arrow
         MAX_PERCENT_AS_ARROW_HEAD = 0.50
-        ARROW_LENGTH_CAP = p_total_base_pairs * 0.015
+        ARROW_LENGTH_CAP = p_total_base_pairs * 0.01
         max_arrow_length = circular_length(self.get_start_pair(), self.get_end_pair(), p_total_base_pairs) * MAX_PERCENT_AS_ARROW_HEAD
-        length_of_arrow_head = max_arrow_length if max_arrow_length < ARROW_LENGTH_CAP else ARROW_LENGTH_CAP
+        length_of_arrow_head = math.floor(max_arrow_length if max_arrow_length < ARROW_LENGTH_CAP else ARROW_LENGTH_CAP)
 
         # ======= Determining the arrow start and end ========
 
@@ -1044,7 +1048,7 @@ class ArrowFeature(DirectionalMultiPairFeature):
                              (p_center[1] + p_radius - (f_width / 2)) * np.cos(angle_of_arrow_end_radians))
 
         # Amount to stretch the arrow outwards / inwards to achieve the line width scale effect
-        adjust_amount = ((f_width * self.get_line_width_scale_factor()) - f_width) / 2
+        adjust_amount = ((p_line_width * self.get_line_width_scale_factor()) - p_line_width) / 2
 
         triangle_point_inner_circle_xy = (((p_center[0] + p_radius - f_width - adjust_amount) * np.sin(
             angle_of_arrow_start_radians)),

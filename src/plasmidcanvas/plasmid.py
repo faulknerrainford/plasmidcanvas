@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import math
 from typing import MutableSequence
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
@@ -19,6 +21,8 @@ def draw_plasmid(df, title, bp_size, style="default"):
         plasmid.set_plasmid_line_width_sf(0.1, feature_lock=False)
         plasmid.set_feature_label_style("text_only")
     if df is not None:
+        label_collision_adjustments = check_label_collisions(df, bp_size)
+        df["label_adjustments"] = label_collision_adjustments
         for row in df.iterrows():
             row = row[1]
             if abs(row["start"]-row["end"])<10 or row["direction"]==0:
@@ -26,8 +30,119 @@ def draw_plasmid(df, title, bp_size, style="default"):
             else:
                 feature = ArrowFeature(row["name"], row["start"], row["end"], direction=row["direction"])
             feature.set_color(row['colour'])
+            feature.set_label_adjustment(row["label_adjustments"])
             plasmid.add_feature(feature)
     return plasmid
+
+
+def check_label_collisions(df, bp_size):
+    collision_zone = get_collision_zones(df, bp_size)
+    collision_adj = [[1, 1, 0] for _ in range(len(collision_zone))]
+    i = 0
+    for i_loop in range(len(collision_zone)):
+        if collision_zone[i]:
+            collision_indexes = [i, 0]
+            for j in range(i, len(collision_zone)):
+                if j == len(collision_zone)-1:
+                    collision_indexes[1] = j
+                    break
+                elif collision_zone[i] != collision_zone[j]:
+                    collision_indexes[1] = j-1
+                    break
+            k = collision_indexes[0]
+            for k_loop in range(collision_indexes[0], collision_indexes[1]+1):
+                zone = collision_zone[k]
+                if zone in [2, 5]:
+                    # based on number of 2 collisions above and below the 90 degree point add and subtract vertical
+                    # space
+                    equator_start = k
+                    equator_end = collision_indexes[1]
+                    for search in range(k, (collision_indexes[1]+1)):
+                        if collision_zone[search] != zone:
+                            equator_end = search
+                            break
+                    # move to either side of 0 so int shifts should be increments for modifications
+                    shift = equator_start + (math.floor(0.5*(equator_end-equator_start)))
+                    equator_adj_end = equator_end - shift
+                    equator_adj_start =  equator_start - shift
+                    inc_range = range(equator_adj_start, equator_adj_end+1)
+                    for a in range(len(inc_range)):
+                        adj = a + equator_start
+                        if zone == 2:
+                            collision_adj[adj][2] = -inc_range[a]
+                        else:
+                            collision_adj[adj][2] = inc_range[a]
+                    if equator_end == collision_indexes[1]:
+                        break
+                    else:
+                        k = equator_end + 1
+                else:
+                    col_start = k
+                    col_end = collision_indexes[1]
+                    for search in range(k, (collision_indexes[1] + 1)):
+                        if collision_zone[search] != zone:
+                            col_end = search
+                            break
+                    scale_incr = 1 / (col_end - col_start)
+                    if zone in [1, 4]:
+                        range_incr = np.arange(2, 1-(scale_incr*0.1), -scale_incr)
+                    else:
+                        range_incr = np.arange(1, 2+(scale_incr*0.1), scale_incr)
+                    for b in range(len(range_incr)):
+                        adj = b + col_start
+                        collision_adj[adj][0] = range_incr[b]
+                    if col_end == collision_indexes[1]:
+                        break
+                    else:
+                        k = col_end + 1
+            if collision_indexes[1] >= len(collision_zone) - 1:
+                break
+            else:
+                i = collision_indexes[1]+1
+        else:
+            i += 1
+            if i == len(collision_zone):
+                break
+    return collision_adj
+
+
+def get_collision_zones(df, bp_size):
+    prox_bp = math.ceil(bp_size / 60)
+    midpoints = df["start"] + ((df["end"] - df["start"])/2)
+    collision_zone = [0 for _ in range(len(midpoints))]
+    current_point = midpoints[0]
+    halfway_tip = False
+    big_zone_bp = math.floor(bp_size * (80 / 360))
+    small_zone_bp = math.floor(bp_size * 0.5) - (2 * big_zone_bp)
+    zone = 0
+    # Determine if a collision occurs and which zone the point is in when it collides
+    for m in range(1, len(midpoints)):
+        if midpoints[m] < big_zone_bp:
+            zone = 1
+        elif big_zone_bp < midpoints[m] < (big_zone_bp + small_zone_bp):
+            zone = 2
+        elif (big_zone_bp + small_zone_bp) < midpoints[m] < math.floor(bp_size / 2):
+            zone = 3
+        elif math.floor(bp_size / 2) < midpoints[m] < bp_size - (big_zone_bp + small_zone_bp):
+            zone = 4
+            if current_point < bp_size / 2:
+                halfway_tip = True
+        elif bp_size - (big_zone_bp + small_zone_bp) < midpoints[m] < bp_size - big_zone_bp:
+            zone = 5
+            if current_point < bp_size / 2:
+                halfway_tip = True
+        else:
+            zone = 6
+            if current_point < bp_size / 2:
+                halfway_tip = True
+        if midpoints[m] - current_point < prox_bp and not halfway_tip:
+            collision_zone[m] = zone
+            if collision_zone[m - 1] == 0:
+                collision_zone[m - 1] = zone
+        elif halfway_tip:
+            halfway_tip = False
+        current_point = midpoints[m]
+    return collision_zone
 
 
 class Plasmid:

@@ -38,6 +38,7 @@ class Feature:
         self.set_name(name)
         self.set_text_size(text_size)
         self.set_label_style(label_style)
+        self.label_adjustment = [1, 1, 0]
 
     def _render(self, ax: Axes, p_total_base_pairs: int, p_center, p_radius: float, p_line_width: float, f_width: float) -> None:
         """
@@ -147,6 +148,9 @@ class Feature:
             The text size of the feature.
         """
         self.label_text_style = label_text_style
+
+    def set_label_adjustment(self, label_adjustment: list):
+        self.label_adjustment = label_adjustment
 
 
 class MultiPairFeature(Feature):
@@ -407,6 +411,7 @@ class MultiPairFeature(Feature):
                 label.set_line_color(self.color)
                 label.set_font_size(self._label_font_size)
                 label.set_font_color(self.color)
+                label.set_label_adjustment(self.label_adjustment)
                 labels.append(label)
 
         return labels
@@ -605,30 +610,46 @@ class SinglePairLabel(SinglePairFeature, LabelBase):
             The width of the features connected to the plasmid.
         """
         degrees = (self.get_base_pair() / p_total_base_pairs) * 360
-        # TODO: Use degrees to determine quadrant
+
         radians = np.deg2rad(degrees)
 
         # Calculate the x and y of the inner coordinates of the line
         start_xy = ((p_center[0] + p_radius) * np.sin(radians),
                     (p_center[1] + p_radius) * np.cos(radians))
 
-        # To make the line for the label stick out farther we times by a scale factor to make the radius larger
-        end_xy = (((p_center[0] + p_radius + (f_width * (2 + self._orbit_ofset))) * self.line_length_sf) * np.sin(
-            radians),
-                  ((p_center[1] + p_radius + (f_width * (2 + self._orbit_ofset)) * self.line_length_sf) * np.cos(
-                      radians)))
+        # Set line length sf based on label adjustment
+        self.set_line_length_sf(self.label_adjustment[0])
 
-        align = "left" if (degrees <= 180) else "right"
+        # To make the line for the label stick out farther we times by a scale factor to make the radius larger
+        end_xy = (((p_center[0] + p_radius + (f_width * (2 + self._orbit_ofset) * self.line_length_sf))
+                   * np.sin(radians)),
+                  ((p_center[1] + p_radius + (f_width * (2 + self._orbit_ofset) * self.line_length_sf))
+                   * np.cos(radians)))
+
+        h_align = "left" if (degrees <= 180) else "right"
+        if h_align == "left":
+            h_line_x = end_xy[0]+(f_width * (2 + self._orbit_ofset)
+                                  * self.label_adjustment[1])
+            label_x = h_line_x+20
+
+        else:
+            h_line_x = end_xy[0]-(f_width * (2 + self._orbit_ofset)
+                                  * self.label_adjustment[1])
+            label_x = h_line_x-20
 
         # Plot the line and text for the label
         # Using zorder=3 to bring the line and label forward so they dont get covered up by other overlapping features
 
         ax.plot([start_xy[0], end_xy[0]], [start_xy[1], end_xy[1]], color=self.get_line_color(),
                 alpha=self._DEFAULT_LINE_ALPHA, zorder=3)
-        # TODO: Add horizontal line off the end of the main line to help position labels
-        # TODO: modify text start based on position around circle to move label off the line
-        ax.text(x=end_xy[0], y=end_xy[1], s=self.get_label_text(), fontsize=self.get_font_size(),
-                color=self.font_color, horizontalalignment=align, verticalalignment="center", zorder=3)
+
+        # Add horizontal line off the end of the main line to help position labels
+        ax.plot([end_xy[0], h_line_x], [end_xy[1], end_xy[1]], color=self.get_line_color(),
+                alpha=self._DEFAULT_LINE_ALPHA, zorder=3)
+
+        # text start based on position around circle to move label off the line
+        ax.text(x=label_x, y=end_xy[1], s=self.get_label_text(), fontsize=self.get_font_size(),
+                color=self.font_color, horizontalalignment=h_align, verticalalignment="center", zorder=3)
 
     def get_line_color(self) -> str:
         """

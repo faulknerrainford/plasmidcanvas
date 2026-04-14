@@ -36,14 +36,17 @@ def draw_plasmid(df, title, bp_size, style="default"):
 
 
 def check_label_collisions(df, bp_size):
-    collision_zone = get_collision_zones(df, bp_size)
+    collision_zone, collision_starts = get_collision_zones(df, bp_size)
     collision_adj = [[1, 1, 0] for _ in range(len(collision_zone))]
-    i = 0
-    for i_loop in range(len(collision_zone)):
+    for i in collision_starts:
+        if i != collision_starts[-1]:
+            end = collision_starts[collision_starts.index(i) + 1]
+        else:
+            end = len(collision_zone)
         if collision_zone[i]:
             collision_indexes = [i, 0]
-            for j in range(i, len(collision_zone)):
-                if j == len(collision_zone)-1:
+            for j in range(i, end):
+                if j == end-1:
                     collision_indexes[1] = j
                     break
                 elif collision_zone[i] != collision_zone[j]:
@@ -97,19 +100,15 @@ def check_label_collisions(df, bp_size):
                         k = col_end + 1
             if collision_indexes[1] >= len(collision_zone) - 1:
                 break
-            else:
-                i = collision_indexes[1]+1
-        else:
-            i += 1
-            if i == len(collision_zone):
-                break
     return collision_adj
 
 
-def get_collision_zones(df, bp_size):
+def get_collision_zones(df, bp_size) -> tuple[list, list]:
     prox_bp = math.ceil(bp_size / 60)
     midpoints = df["start"] + ((df["end"] - df["start"])/2)
     collision_zone = [0 for _ in range(len(midpoints))]
+    collision_starts = []
+    collision_init = True
     current_point = midpoints[0]
     halfway_tip = False
     big_zone_bp = math.floor(bp_size * (80 / 360))
@@ -127,22 +126,31 @@ def get_collision_zones(df, bp_size):
             zone = 4
             if current_point < bp_size / 2:
                 halfway_tip = True
+                collision_init = True
         elif bp_size - (big_zone_bp + small_zone_bp) < midpoints[m] < bp_size - big_zone_bp:
             zone = 5
             if current_point < bp_size / 2:
                 halfway_tip = True
+                collision_init = True
         else:
             zone = 6
             if current_point < bp_size / 2:
                 halfway_tip = True
+                collision_init = True
         if midpoints[m] - current_point < prox_bp and not halfway_tip:
+            if collision_init:
+                collision_starts.append(m-1)
+                collision_init = False
             collision_zone[m] = zone
             if collision_zone[m - 1] == 0:
                 collision_zone[m - 1] = zone
         elif halfway_tip:
             halfway_tip = False
+            collision_init = False
+        else:
+            collision_init = True
         current_point = midpoints[m]
-    return collision_zone
+    return collision_zone, collision_starts
 
 
 class Plasmid:

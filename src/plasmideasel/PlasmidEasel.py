@@ -10,6 +10,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
 NavigationToolbar2Tk)
 from functools import partial
+from Bio import SeqIO
 
 from plasmidcanvas.DFTable import DFTable
 
@@ -43,7 +44,7 @@ class PlasmidEasel(ttk.Window):
         # Adding File Menu and commands
         file = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label='File', menu=file)
-        file.add_command(label='Open...', command=self.open_csv)
+        file.add_command(label='Open...', command=self.open_file)
         file.add_command(label='Save As...', command=self.save_canvas)
         file.add_separator()
         file.add_command(label='Exit', command=self.destroy)
@@ -81,15 +82,41 @@ class PlasmidEasel(ttk.Window):
         controlpannels.columnconfigure(0, weight=1)
         controlpannels.rowconfigure(0, weight=1)
 
-    def open_csv(self):
+    def open_file(self):
         filename = filedialog.askopenfilename(defaultextension='.csv',
-                                              filetypes=[('CSV files', '*.csv'), ('TSV Files', '*.tsv')])
-        file = open(filename, mode='r')
-        contents = file.readlines()
-        self.plasmid_bps.set(int(contents[1]))
-        self.plasmid_title.set(contents[0].split()[0])
-        # HEADER = contents[0].split()[1:]
-        self.PLASMID_DF = pd.read_csv(filename, sep=self.SEPERATORS[filename[-3:]], header=2)
+                                              filetypes=[('CSV files', '*.csv'), ('TSV Files', '*.tsv'), ('Genbank', '*.gb')])
+        if filename.endswith('.csv') or filename.endswith('.tsv'):
+            file = open(filename, mode='r')
+            contents = file.readlines()
+            self.plasmid_bps.set(int(contents[1]))
+            self.plasmid_title.set(contents[0].split()[0])
+            # HEADER = contents[0].split()[1:]
+            self.PLASMID_DF = pd.read_csv(filename, sep=self.SEPERATORS[filename[-3:]], header=2)
+        elif filename.endswith('.gb'):
+            # load genbank file and convert to plasmid df
+            sequence = SeqIO.read(filename, 'genbank')
+            # Get plasmid label and bp_length
+            self.plasmid_title.set(sequence.name)
+            self.plasmid_bps.set(len(sequence.seq))
+            # Set up dataframe to take features
+            plasmid_df = pd.DataFrame(columns=["index", "name",	"type",	"start", "end",	"direction", "colour"])
+            i = 0
+            for feature in sequence.features:
+                # For each feature get: name, type, start, end, direction and colour
+                name = feature.qualifiers['label'][0]
+                type = feature.type
+                start = feature.location.start
+                end = feature.location.end
+                direction = feature.strand
+                colour = 'black'
+                for col in feature.qualifiers.keys():
+                    if "color" in col:
+                        colour = feature.qualifiers[col][0]
+                # form row and add to dataframe
+                plasmid_df.loc[len(plasmid_df)] = [i, name, type, start, end, direction, colour]
+                i += 1
+            self.PLASMID_DF = plasmid_df
+
         self.table.load_data()
         self.PLASMID = draw_plasmid(self.PLASMID_DF, self.plasmid_title.get(), self.plasmid_bps.get(),
                                     self.plasmid_style.get())

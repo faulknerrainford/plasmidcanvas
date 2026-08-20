@@ -6,28 +6,59 @@ from ttkbootstrap.constants import *
 from ttkbootstrap.icons import Emoji
 from ttkbootstrap.validation import *
 from plasmidcanvas import Plasmid, draw_plasmid
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
-NavigationToolbar2Tk)
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg)
 from functools import partial
 from Bio import SeqIO
-
 from plasmidcanvas.DFTable import DFTable
 
-
-#
-
-
 class PlasmidEasel(ttk.Window):
+    """
+    Main application window for the PlasmidEasel GUI.
+
+    Extends ``ttkbootstrap.Window`` and provides a matplotlib canvas for
+    plasmid visualisation alongside tabbed control panels for editing plasmid
+    properties and feature tables.
+
+    Attributes
+    ----------
+    plasmid_title : tk.StringVar
+        The current plasmid name.
+    plasmid_bps : tk.IntVar
+        The current plasmid length in base pairs.
+    PLASMID : Plasmid
+        The Plasmid model object being visualised.
+    PLASMID_DF : pd.DataFrame or None
+        Feature data loaded from file.
+    FIG : matplotlib.figure.Figure
+        The active figure used for rendering.
+    fig_size : tuple of int
+        Width and height in inches for the matplotlib figure.
+    canvas_figures : list of FigureCanvasTkAgg
+        History of canvas objects; the last entry is the active one.
+    plasmid_style : tk.StringVar
+        Selected rendering style (``'default'`` or ``'minimalist'``).
+    commands_log : list
+        Command history for undo/redo, capped at 10 entries.
+    commands_pointer : int
+        Index into ``commands_log`` pointing to the current state.
+    """
 
     def __init__(self, **kw):
+        """
+        Initialise the window, menus, matplotlib canvas and control panels.
+
+        Parameters
+        ----------
+        **kw
+            Keyword arguments forwarded to ``ttkbootstrap.Window``.
+        """
         super(PlasmidEasel, self).__init__(themename="pulse", **kw)
         self.title("PlasmidEasel")
         self.plasmid_title = tk.StringVar(None, "TORC")
         self.plasmid_bps = tk.IntVar(None, 1200)
         self.PLASMID: Plasmid = Plasmid(self.plasmid_title.get(), self.plasmid_bps.get())
-        self.PLASMID_DF: pd.DataFrame = None
-        self.SEPERATORS = {"tsv": "\t", "csv": ","}
+        self.PLASMID_DF: pd.DataFrame = pd.DataFrame()
+        self.SEPARATORS = {"tsv": "\t", "csv": ","}
         self.FIG = self.PLASMID.plot()
         self.fig_size = (3, 3)
         self.FIG.set_size_inches(self.fig_size[0], self.fig_size[1])
@@ -35,7 +66,7 @@ class PlasmidEasel(ttk.Window):
         self.plasmid_style = tk.StringVar(None, 'default')
         self.rowconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
-        self.commands_log = [(None)]
+        self.commands_log: list[tuple] = [()]
         self.commands_pointer = 0
 
         # Creating Menubar
@@ -53,16 +84,16 @@ class PlasmidEasel(ttk.Window):
         self.edit = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label='Edit', menu=self.edit)
 
-        self.edit.add_command(label='Undo', command=self.undo_command, accelerator='Ctrl+Z', state=tk.DISABLED)
-        self.edit.add_command(label='Redo', command=self.redo_command, accelerator='Ctrl+Shift+Z', state=tk.DISABLED)
-        self.bind('<Control-z>', self.undo_command, add=True)
-        self.bind('<Control-Shift-z>', self.redo_command, add=True)
+        self.edit.add_command(label='Undo', command=self.undo_command, accelerator='Ctrl+Z', state='disabled')
+        self.edit.add_command(label='Redo', command=self.redo_command, accelerator='Ctrl+Shift+Z', state='disabled')
+        self.bind('<Control-z>', self.undo_command, add='+')
+        self.bind('<Control-Shift-z>', self.redo_command, add='+')
 
 
         # Adding Help Menu
         help_ = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label='Help', menu=help_)
-        help_.add_command(label='PlasmidEasel Docs', command=None, state=tk.DISABLED)
+        # help_.add_command(label='PlasmidEasel Docs', command=None, state='disabled')
 
         self.config(menu=menubar)
 
@@ -83,6 +114,13 @@ class PlasmidEasel(ttk.Window):
         controlpannels.rowconfigure(0, weight=1)
 
     def open_file(self):
+        """
+        Open a CSV, TSV or GenBank file and load its contents.
+
+        Prompts the user with a file dialog. On success the plasmid title,
+        base-pair count and feature DataFrame are updated, the table panel is
+        reloaded and the plasmid canvas is redrawn.
+        """
         filename = filedialog.askopenfilename(defaultextension='.csv',
                                               filetypes=[('CSV files', '*.csv'), ('TSV Files', '*.tsv'), ('Genbank', '*.gb')])
         if filename.endswith('.csv') or filename.endswith('.tsv'):
@@ -91,7 +129,7 @@ class PlasmidEasel(ttk.Window):
             self.plasmid_bps.set(int(contents[1]))
             self.plasmid_title.set(contents[0].split()[0])
             # HEADER = contents[0].split()[1:]
-            self.PLASMID_DF = pd.read_csv(filename, sep=self.SEPERATORS[filename[-3:]], header=2)
+            self.PLASMID_DF = pd.read_csv(filename, sep=self.SEPARATORS[filename[-3:]], header=2)
         elif filename.endswith('.gb'):
             # load genbank file and convert to plasmid df
             sequence = SeqIO.read(filename, 'genbank')
@@ -123,11 +161,23 @@ class PlasmidEasel(ttk.Window):
         self.redraw_plasmid()
 
     def save_canvas(self):
+        """
+        Save the current plasmid figure to a user-chosen file.
+
+        Supports PNG, SVG, PDF and JPG output formats selected via a save
+        dialog.
+        """
         filename = filedialog.asksaveasfilename(filetypes=[('PNG files', '*.png'), ('SVG files', '*.svg'),
                                                            ('PDF files', '*.pdf'), ('JPG files', '*.jpg')])
         self.PLASMID.save_to_file(filename)
 
     def redraw_plasmid(self):
+        """
+        Replace the active matplotlib canvas with a freshly drawn figure.
+
+        Removes the previous canvas from the grid and places the new one in
+        its position.
+        """
         self.FIG = self.PLASMID.plot()
         self.FIG.set_size_inches(self.fig_size[0], self.fig_size[1])
         self.canvas_figures[-1].get_tk_widget().pack_forget()
@@ -137,6 +187,17 @@ class PlasmidEasel(ttk.Window):
         new_canvas.get_tk_widget().grid(row=0, column=0, sticky='nsew')
 
     def update_plasmid(self, *kw):
+        """
+        Record a command snapshot and regenerate the plasmid from current settings.
+
+        Logs the current state to the undo history, rebuilds ``self.PLASMID``
+        via ``draw_plasmid`` and triggers a canvas redraw.
+
+        Parameters
+        ----------
+        *kw
+            Unused; present so the method can be used as a tkinter callback.
+        """
         self.command_add(("GENERAL_PLASMID_UPDATE", self.PLASMID, self.plasmid_title.get(), self.plasmid_bps.get()))
         self.PLASMID = draw_plasmid(self.PLASMID_DF, self.plasmid_title.get(), self.plasmid_bps.get(),
                                     self.plasmid_style.get())
@@ -144,6 +205,19 @@ class PlasmidEasel(ttk.Window):
         self.focus_get().focus_set()
 
     def command_add(self, command: tuple):
+        """
+        Append a command tuple to the undo/redo history.
+
+        Truncates any redo-forward history beyond the current pointer, appends
+        the new command, and keeps the log to at most 10 entries. Enables the
+        Undo menu item and disables Redo.
+
+        Parameters
+        ----------
+        command : tuple
+            A descriptor whose first element is the command name string, e.g.
+            ``'GENERAL_PLASMID_UPDATE'``, ``'DELETE'``, or ``'ADD_ROW'``.
+        """
         self.commands_pointer += 1
         if self.commands_pointer != len(self.commands_log)-1:
             self.commands_log= self.commands_log[:self.commands_pointer]
@@ -154,7 +228,14 @@ class PlasmidEasel(ttk.Window):
         self.edit.entryconfig('Undo', state=tk.NORMAL)
         self.edit.entryconfig('Redo', state=tk.DISABLED)
 
-    def undo_command(self):
+    def undo_command(self, *kw):
+        """
+        Undo the most recent logged command.
+
+        Restores the application state described by the command at
+        ``commands_pointer`` and decrements the pointer. Disables Undo when
+        the beginning of the log is reached and enables Redo.
+        """
         if self.commands_log[self.commands_pointer][0]:
             command = self.commands_log[self.commands_pointer]
             if command[0] == "GENERAL_PLASMID_UPDATE":
@@ -171,7 +252,13 @@ class PlasmidEasel(ttk.Window):
         if self.commands_pointer == 0:
             self.edit.entryconfig('Undo', state=tk.DISABLED)
 
-    def redo_command(self):
+    def redo_command(self, *kw):
+        """
+        Redo the next command in the history log.
+
+        Advances ``commands_pointer`` and re-applies the command at the new
+        position. Disables Redo when the end of the log is reached.
+        """
         if len(self.commands_log) > self.commands_pointer + 1:
             self.commands_pointer += 1
             if len(self.commands_log)-1 == self.commands_pointer:
@@ -192,11 +279,32 @@ class PlasmidEasel(ttk.Window):
 
 
 class GeneralPanel(ttk.Frame):
+    """
+    A control panel for editing high-level plasmid properties.
+
+    Provides style-selection radio buttons, plasmid title and base-pair-size
+    inputs, and an Apply button. All controls are bound to the parent
+    ``PlasmidEasel`` instance.
+
+    Parameters
+    ----------
+    master : tk.Widget, optional
+        The parent notebook or container widget.
+    """
+
     def __init__(self, master=None):
+        """
+        Build and lay out the style selector, title/BP inputs and Apply button.
+
+        Parameters
+        ----------
+        master : tk.Widget, optional
+            The parent widget (typically a ``ttk.Notebook``).
+        """
         super().__init__(master)
         self.Easel = self.master.master
         # Radio button style selection
-        style = ttk.LabelFrame(self, text='Style')
+        style = tk.LabelFrame(self, text='Style')
 
         style_default = ttk.Radiobutton(style, text='Default', variable=self.Easel.plasmid_style, value='default',
                                         command=self.Easel.update_plasmid)
@@ -222,59 +330,14 @@ class GeneralPanel(ttk.Frame):
         apply = ttk.Button(self, command=self.Easel.update_plasmid, text='Apply')
         apply.grid(row=3, column=0, sticky='nsew', pady=5, padx=5)
 
-
-class RowPanel(ttk.Frame):
-    def __init__(self, master =None):
-        super().__init__(master)
-        self.Table: DFTable = self.master.Table
-        if len(self.Table.table_df.columns) % 2:
-            bootstyle = 'info-inverse'
-        else:
-            bootstyle = 'info'
-        label = ttk.Label(self, text='delete?', bootstyle=bootstyle)
-        label.grid(row=0, column=0, sticky='nsew', pady=5, padx=5)
-        row_count = self.Table.table_df.shape[0]
-        self.buttons = []
-        self.delete_icon = Emoji.get("wastebasket")
-        for i in range(row_count):
-            delete_by_index = partial(self.delete_row, i)
-            button = ttk.Button(self, text=self.delete_icon, bootstyle=(INFO, OUTLINE),
-                                command=delete_by_index)
-            button.grid(row=i+1, column=0, sticky='nsew', pady=4, padx=5)
-            self.buttons.append(button)
-
-    def delete_row(self, index, log=True):
-        row_name = self.Table.table_df.iloc[index]["name"].get()
-        command = ("DELETE", index, row_name, self.Table.rows.copy(), self.Table.table_df.copy())
-        row_count = self.Table.table_df.shape[0]
-        self.master.Table.delete_row(index+1, row_name)
-        self.buttons[row_count-1].grid_forget()
-        if log:
-            self.master.Easel.command_add(command)
-
-    def undo_delete_row(self, index, label, row=None, table=None):
-        self.Table.undo_delete_row(index, label, row, table)
-        self.add_row()
-
-    def add_row(self):
-        row_count = self.Table.table_df.shape[0]
-        if len(self.buttons) >= row_count:
-            self.buttons[row_count-1].grid(row=row_count, column=0, sticky='nsew', pady=4, padx=5)
-        else:
-            button = ttk.Button(self, text=self.delete_icon, bootstyle=(INFO, OUTLINE),
-                                command=lambda: self.delete_row(row_count))
-            button.grid(row=row_count, column=0, sticky='nsew', pady=4, padx=5)
-            self.buttons.append(button)
-
-
 class TablePanel(ttk.Frame):
-    def __init__(self, master=None):
+    def __init__(self, master: ttk.Notebook =None):
         super().__init__(master)
-        self.Easel: PlasmidEasel = self.master.master
-        self.Table: DFTable = None
-        self.delete_var: tk.StringVar = None
-        self.undo_delete_button: ttk.Button = None
-        self.delete_select: ttk.Combobox = None
+        self.Easel: PlasmidEasel | Misc | None = self.master.master
+        self.Table: DFTable | None = None
+        self.delete_var: tk.StringVar | None = None
+        self.undo_delete_button: ttk.Button | None = None
+        self.delete_select: ttk.Combobox | None = None
 
     def load_data(self):
         if self.Table:
@@ -333,6 +396,104 @@ class TablePanel(ttk.Frame):
 
     def save_data(self):
         pass
+
+
+class RowPanel(ttk.Frame):
+    """
+    A panel that renders a column of delete buttons aligned with table rows.
+
+    One wastebasket button is shown per row in the associated ``DFTable``.
+    Clicking a button deletes the corresponding row and updates the undo log.
+
+    Parameters
+    ----------
+    master : TablePanel, optional
+        The parent ``TablePanel`` widget.
+
+    Attributes
+    ----------
+    Table : DFTable
+        Reference to the sibling ``DFTable`` widget.
+    buttons : list of ttk.Button
+        Delete buttons, one per row.
+    delete_icon : str
+        Unicode wastebasket emoji used as the button label.
+    """
+
+    def __init__(self, master: TablePanel =None):
+        """
+        Construct the delete-button column, one button per existing table row.
+
+        Parameters
+        ----------
+        master : TablePanel, optional
+            The parent widget, expected to expose a ``Table`` attribute of
+            type ``DFTable``.
+        """
+        super().__init__(master)
+        self.Table: DFTable = self.master.Table
+        if len(self.Table.table_df.columns) % 2:
+            bootstyle = 'info-inverse'
+        else:
+            bootstyle = 'info'
+        label = ttk.Label(self, text='delete?', bootstyle=bootstyle)
+        label.grid(row=0, column=0, sticky='nsew', pady=5, padx=5)
+        row_count = self.Table.table_df.shape[0]
+        self.buttons = []
+        self.delete_icon = Emoji.get("wastebasket")
+        for i in range(row_count):
+            delete_by_index = partial(self.delete_row, i)
+            button = ttk.Button(self, text=self.delete_icon, bootstyle=(INFO, OUTLINE),
+                                command=delete_by_index)
+            button.grid(row=i+1, column=0, sticky='nsew', pady=4, padx=5)
+            self.buttons.append(button)
+
+    def delete_row(self, index, log=True):
+        """
+        Delete the table row at *index* and optionally log the operation.
+
+        Parameters
+        ----------
+        index : int
+            0-based index of the row to delete.
+        log : bool, optional
+            If ``True`` (default), records the operation in the undo history.
+        """
+        row_name = self.Table.table_df.iloc[index]["name"].get()
+        command = ("DELETE", index, row_name, self.Table.rows.copy(), self.Table.table_df.copy())
+        row_count = self.Table.table_df.shape[0]
+        self.master.Table.delete_row(index+1, row_name)
+        self.buttons[row_count-1].grid_forget()
+        if log:
+            self.master.Easel.command_add(command)
+
+    def undo_delete_row(self, index, label, row=None, table=None):
+        """
+        Restore a previously deleted row and refresh the button column.
+
+        Parameters
+        ----------
+        index : int
+            0-based index of the row to restore.
+        label : str
+            ``'name'`` column value used to identify the target row.
+        row : list, optional
+            Row-list snapshot forwarded to ``DFTable.undo_delete_row``.
+        table : pd.DataFrame, optional
+            Table snapshot forwarded to ``DFTable.undo_delete_row``.
+        """
+        self.Table.undo_delete_row(index, label, row, table)
+        self.add_row()
+
+    def add_row(self):
+        row_count = self.Table.table_df.shape[0]
+        if len(self.buttons) >= row_count:
+            self.buttons[row_count-1].grid(row=row_count, column=0, sticky='nsew', pady=4, padx=5)
+        else:
+            button = ttk.Button(self, text=self.delete_icon, bootstyle=(INFO, OUTLINE),
+                                command=lambda: self.delete_row(row_count))
+            button.grid(row=row_count, column=0, sticky='nsew', pady=4, padx=5)
+            self.buttons.append(button)
 
 
 if __name__ == '__main__':

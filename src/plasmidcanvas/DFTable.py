@@ -6,6 +6,23 @@ from ttkbootstrap.validation import *
 
 
 def columnTypeToVariable(var_type, value):
+    """
+    Convert a column type string to the appropriate tkinter variable.
+
+    Parameters
+    ----------
+    var_type : str
+        The column type. One of ``'String'``, ``'Int'``, ``'Float'``,
+        ``'Boolean'``. Unrecognised values fall back to ``StringVar``.
+    value : any
+        The initial value assigned to the variable.
+
+    Returns
+    -------
+    tk.Variable
+        A tkinter variable of the corresponding type (``StringVar``,
+        ``IntVar``, ``DoubleVar``, or ``BooleanVar``).
+    """
     if var_type == 'String':
         return tk.StringVar(None, value)
     elif var_type == 'Int':
@@ -19,6 +36,17 @@ def columnTypeToVariable(var_type, value):
 
 
 def add_validation(entry, col_type):
+    """
+    Add keystroke-level input validation to a tkinter Entry widget.
+
+    Parameters
+    ----------
+    entry : ttk.Entry
+        The entry widget to validate.
+    col_type : str
+        The column type. ``'Int'`` and ``'Float'`` receive numeric validation;
+        all other values (including ``'String'``) receive text validation.
+    """
     if col_type == 'String':
         add_text_validation(entry, when='key')
     elif col_type == 'Int':
@@ -30,11 +58,55 @@ def add_validation(entry, col_type):
 
 
 class DFTable(ttk.Frame):
-    def __init__(self, master=None, df=None, col_types=[]):
+    """
+    A tkinter Frame that renders a pandas DataFrame as an editable grid.
+
+    Each cell is backed by a tkinter variable so values can be harvested back
+    as a DataFrame via `update_table`.
+
+    Parameters
+    ----------
+    master : tk.Widget, optional
+        The parent widget.
+    df : pd.DataFrame, optional
+        The DataFrame whose contents populate the table.
+    col_types : list of str, optional
+        Per-column type strings (``'String'``, ``'Int'``, ``'Float'``,
+        ``'Boolean'``) controlling the variable type and input validation.
+
+    Attributes
+    ----------
+    df : pd.DataFrame
+        The original source DataFrame.
+    table_df : pd.DataFrame
+        Same shape as *df*; cells hold tkinter variables instead of raw values.
+    rows : list of DFRow
+        Currently displayed row objects.
+    column_types : list of str
+        The column-type strings supplied at construction.
+    deleted_rows : list of tuple
+        Stack of deleted-row snapshots used for undo operations.
+    """
+
+    def __init__(self, master=None, df=None, col_types=None):
+        """
+        Initialise the DFTable and render column headers and rows.
+
+        Parameters
+        ----------
+        master : tk.Widget, optional
+            The parent widget.
+        df : pd.DataFrame, optional
+            The DataFrame to display.
+        col_types : list of str, optional
+            Per-column type strings for variable creation and validation.
+        """
         super().__init__(master)
+        if col_types is None:
+            col_types = []
         self.master = master
         self.df: pd.DataFrame = df
-        self.table_df: pd.DataFrame = self.df.copy()
+        self.table_df: pd.DataFrame | None = pd.DataFrame(None, index=self.df.index, columns=self.df.columns)
         self.rows = []
         self.column_types = col_types
         self.deleted_rows = []
@@ -59,6 +131,17 @@ class DFTable(ttk.Frame):
 
     # update function for table, updates all rows
     def update_table(self) -> pd.DataFrame:
+        """
+        Collect current cell values and return an updated DataFrame.
+
+        Resets the index column then applies all tkinter variable values back
+        into ``self.df``.
+
+        Returns
+        -------
+        pd.DataFrame
+            The updated DataFrame with current widget values.
+        """
         # # TODO: Modify to just generate a new df of values from table df
         # # check for deleted rows
         # if len(self.deleted_rows) > 0:
@@ -72,10 +155,20 @@ class DFTable(ttk.Frame):
         # for row in self.rows:
         #     row.update_row()
         self.update_index()
-        self.df = self.table_df.applymap(lambda x: x.get())
+        self.df = self.table_df.map(lambda x: x.get())
         return self.df
 
     def update_index(self, init=False):
+        """
+        Resequence the ``'index'`` column of ``table_df`` to reflect current row order.
+
+        Parameters
+        ----------
+        init : bool, optional
+            If ``True``, only resets the DataFrame integer index without
+            updating the ``'index'`` column values or row positions.
+            Default is ``False``.
+        """
         if not init:
             [x.set(i+1) for i, x in zip(range(self.table_df.shape[0]), self.table_df['index'])]
             for row, i in zip(self.rows, range(len(self.rows))):
@@ -85,6 +178,20 @@ class DFTable(ttk.Frame):
         self.table_df.rename({'index_vars':'index'}, axis=1, inplace=True)
 
     def delete_row(self, ind, label, index_1=True):
+        """
+        Remove a row from the table by index and label, saving a snapshot for undo.
+
+        Parameters
+        ----------
+        ind : int
+            Row index. When *index_1* is ``True`` this is 1-based.
+        label : str
+            Value of the ``'name'`` column for the target row, used to confirm
+            identity before deletion.
+        index_1 : bool, optional
+            If ``True`` (default), convert *ind* from 1-based to 0-based
+            internally.
+        """
         if index_1:
             ind = ind - 1
         # check label matches for index in table_df
@@ -103,7 +210,26 @@ class DFTable(ttk.Frame):
         # update index
         self.update_index()
 
-    def undo_delete_row(self, ind=None, label=None, row=None, table=None):
+    def undo_delete_row(self, ind=None, label=None, row=None, table: pd.DataFrame =None):
+        """
+        Restore a previously deleted row.
+
+        If *row* and *table* are not supplied, the most recent deletion is
+        undone. When *ind* and *label* are provided the matching snapshot is
+        targeted from the deleted-rows stack.
+
+        Parameters
+        ----------
+        ind : int, optional
+            0-based index of the row to restore. Used together with *label*.
+        label : str, optional
+            ``'name'`` column value of the row to restore.
+        row : list of DFRow, optional
+            Explicit row-list snapshot. Takes precedence over the stored stack.
+        table : pd.DataFrame, optional
+            Explicit ``table_df`` snapshot. Takes precedence over the stored
+            stack.
+        """
         # if ind and label not provided undo most recent delete
         if table is None and row is None:
             if ind is None:
@@ -112,7 +238,7 @@ class DFTable(ttk.Frame):
             else:
                 command = [x for x in self.deleted_rows if x[1] == label and x[0] == ind][0]
             row = command[2]
-            table = command[3]
+            table: pd.DataFrame = command[3]
         if row:
             # use concat to insert row of variables back into table_df
             self.table_df = table
@@ -124,6 +250,11 @@ class DFTable(ttk.Frame):
         pass
 
     def add_row(self):
+        """
+        Append a new blank row to the table.
+
+        Updates grid alignment and index column before and after adding the row.
+        """
         # First update grid position for all rows to ensure sensible grid indexing
         self.update_index()
         self.grid_row_alignment()
@@ -133,6 +264,12 @@ class DFTable(ttk.Frame):
         self.update_index()
 
     def grid_row_alignment(self):
+        """
+        Re-grid all row entries so their positions match their list indices.
+
+        Iterates over ``self.rows`` and places each entry widget at
+        ``row_index + 1`` (row 0 is reserved for column headers).
+        """
         # For row in rows enforce grid position to match list index + 1
         for row in self.rows:
             row.row = self.rows.index(row)
@@ -141,7 +278,46 @@ class DFTable(ttk.Frame):
 
 
 class DFRow(ttk.Frame):
-    def __init__(self, master: DFTable = None, row_index: int = None, init=True):
+    """
+    A logical row within a DFTable that owns the tkinter variables and widgets
+    for a single DataFrame row.
+
+    Parameters
+    ----------
+    master : DFTable, optional
+        The parent DFTable widget.
+    row_index : int, optional
+        0-based position of this row in the table.
+    init : bool, optional
+        If ``True`` (default), populate cells from existing DataFrame values.
+        If ``False``, duplicate the preceding row's variable types for a new
+        blank row.
+
+    Attributes
+    ----------
+    row : int
+        Current 0-based row position.
+    variables : list of tk.Variable
+        Tkinter variable objects for each cell in the row.
+    entries : list of ttk.Widget
+        Entry (or Label for the index column) widgets for each cell.
+    """
+
+    def __init__(self, master: DFTable, row_index: int, init=True):
+        """
+        Create variables and entry widgets for one DataFrame row.
+
+        Parameters
+        ----------
+        master : DFTable, optional
+            The parent DFTable.
+        row_index : int, optional
+            0-based index of this row.
+        init : bool, optional
+            If ``True``, values are taken from the DataFrame. If ``False``,
+            a blank row is created by copying variable types from the
+            preceding row. Default is ``True``.
+        """
         super().__init__(master)
         self.master: DFTable = master
         self.row = row_index
@@ -158,7 +334,7 @@ class DFRow(ttk.Frame):
             else:
                 col_type = 'String'
             if init:
-                var = columnTypeToVariable(col_type, master.df.iloc[self.row][i])
+                var = columnTypeToVariable(col_type, master.df.iloc[self.row, i])
             elif master.df.columns[i] in ['colour', 'color']:
                 var = columnTypeToVariable(col_type, 'grey')
             else:
@@ -174,10 +350,16 @@ class DFRow(ttk.Frame):
                 self.entries.append(entry)
                 self.entries[i].grid(row=self.row + 1, column=i, sticky=W, padx=5, pady=5)
             # Add row variables to variables df
-            master.table_df.iloc[self.row, i] = var
+            master.table_df.iat[self.row, i] = var # type: ignore[call-overload]
 
     # create update function for row, update df from string vars
     def update_row(self):
+        """
+        Write current variable values back into the source DataFrame.
+
+        If this row is beyond the current DataFrame length a new row is
+        created by duplicating the last existing row before writing.
+        """
         if self.row == self.master.df.shape[0]:
             self.master.df.loc[self.row] = self.master.df.loc[self.row - 1]
         for i in range(len(self.master.df.columns)):

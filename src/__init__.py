@@ -1,2 +1,2 @@
-from .plasmidcanvas import Plasmid
-from .plasmidcanvas import ArrowFeature
+from .plasmideasel import Plasmid
+from .plasmideasel import ArrowFeature

@@ -1,4 +1,4 @@
-from plasmidcanvas._utils import DEFAULT_LABEL_FONT_SIZE
+from plasmideasel._utils import DEFAULT_LABEL_FONT_SIZE
 
 '''
 TODO:

@@ -8,8 +8,8 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Circle, Wedge
 import numpy as np
 
-from plasmidcanvas.feature import Feature, LabelBase, MultiPairFeature, RectangleFeature, ArrowFeature, RestrictionSite, SinglePairFeature, SinglePairLabel
-from plasmidcanvas._utils import DEFAULT_LABEL_FONT_SIZE, DEFAULT_LABEL_TEXT_STYLE
+from plasmideasel.feature import Feature, LabelBase, MultiPairFeature, RectangleFeature, ArrowFeature, RestrictionSite, SinglePairFeature, SinglePairLabel
+from plasmideasel._utils import DEFAULT_LABEL_FONT_SIZE, DEFAULT_LABEL_TEXT_STYLE
 
 
 def draw_plasmid(df, title, bp_size, style="default"):
@@ -215,7 +215,7 @@ class Plasmid:
         --------
         Creating a Plasmid::
 
-            from plasmidcanvas.plasmid import Plasmid
+            from plasmideasel.plasmid import Plasmid
             myplasmid = Plasmid("pBR322", 4361)
         """
         if base_pairs <= 0:
@@ -250,7 +250,7 @@ class Plasmid:
         -------
         Obtaining a plasmid Figure::
 
-            from plasmidcanvas.plasmid import Plasmid
+            from plasmideasel.plasmid import Plasmid
             myplasmid = Plasmid("pBR322", 4361)
             figure = myplasmid.plot()
             proceed to view or work with figure...
@@ -468,7 +468,7 @@ class Plasmid:
         --------
         To save a plasmid to a png::
 
-            from plasmidcanvas.plasmid import Plasmid
+            from plasmideasel.plasmid import Plasmid
             myplasmid = Plasmid("pBR322", 4361)
             myplasmid.savefig("figure.png")
         """
@@ -511,7 +511,7 @@ class Plasmid:
         ----------
         feature : Feature
             A Feature object to add to the plasmid. e.g RectangleFeature, ArrowFeature, SinglePairLabel, RestrictionSite etc.
-            See the documentation for plasmidcanvas.feature to see the availble Feature types and their usage.
+            See the documentation for plasmideasel.feature to see the availble Feature types and their usage.
 
         Raises
         ------
@@ -527,8 +527,8 @@ class Plasmid:
         --------
         Adding an Arrow Featue::
 
-            from plasmidcanvas.plasmid import Plasmid
-            from plasmidcanvas.feature import ArrowFeature, RectangleFeature, RestrictionSite
+            from plasmideasel.plasmid import Plasmid
+            from plasmideasel.feature import ArrowFeature, RectangleFeature, RestrictionSite
             myplasmid = Plasmid("pBR322", 4361)
             myplasmid.savefig("figure.png")
 

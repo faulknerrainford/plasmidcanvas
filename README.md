@@ -22,8 +22,8 @@ plasmidcanvas is a Python graphics package designed for producing customised pla
 
 # Examples
 
-![example 1](docs/usage_images/pBR322_basic.png)
+![example 1](docs/plasmidcanvas/usage_images/pBR322_basic.png)
 
-![example 2](docs/usage_images/pBR322_overlapping.png)
+![example 2](docs/plasmidcanvas/usage_images/pBR322_overlapping.png)
 
-![example 3](docs/usage_images/pBR322_curved.png)
+![example 3](docs/plasmidcanvas/usage_images/pBR322_curved.png)

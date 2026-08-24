@@ -5,11 +5,11 @@ import pandas as pd
 from ttkbootstrap.constants import *
 from ttkbootstrap.icons import Emoji
 from ttkbootstrap.validation import *
-from plasmidcanvas import Plasmid, draw_plasmid
+from plasmideasel import Plasmid, draw_plasmid
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg)
 from functools import partial
 from Bio import SeqIO
-from plasmidcanvas.DFTable import DFTable
+from plasmideasel.DFTable import DFTable
 
 class PlasmidEasel(ttk.Window):
     """

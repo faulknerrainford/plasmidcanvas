@@ -4,8 +4,8 @@ A copy of example 2 from the usage guide
 This file can be ran individually or as part of the test
 """
 
-from plasmidcanvas.plasmid import Plasmid
-from plasmidcanvas.feature import ArrowFeature, RectangleFeature, RestrictionSite
+from plasmideasel.plasmid import Plasmid
+from plasmideasel.feature import ArrowFeature, RectangleFeature, RestrictionSite
 
 def get_overlapping_plasmid():
     ol_plasmid = Plasmid("pBR322_2", 4361)

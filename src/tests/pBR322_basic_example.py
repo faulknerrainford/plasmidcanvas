@@ -1,10 +1,10 @@
 """
-A copy of example 1 from the usage guide showing how to build pBR322 in plasmidcanvas
+A copy of example 1 from the usage guide showing how to build pBR322 in plasmideasel
 This file can be ran individually or as part of the test
 """
 
-from plasmidcanvas import Plasmid
-from plasmidcanvas import ArrowFeature, RectangleFeature, RestrictionSite
+from plasmideasel import Plasmid
+from plasmideasel import ArrowFeature, RectangleFeature, RestrictionSite
 
 
 def get_basic_plasmid() -> Plasmid:

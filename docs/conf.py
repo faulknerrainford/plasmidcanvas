@@ -6,9 +6,9 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'plasmidcanvas'
-copyright = '2024, Thom Robinson'
-author = 'Thom Robinson'
+project = 'plasmideasel'
+copyright = '2026, Penn Faulkner Rainford'
+author = 'Penn Faulkner Rainford'
 release = '1.0.0'
 
 # -- General configuration ---------------------------------------------------
@@ -20,7 +20,7 @@ extensions = [
 ]
 
 # What to document with autoapi
-autoapi_dirs = ['../src/plasmidcanvas']
+autoapi_dirs = ['../src/plasmideasel']
 autoapi_options = [ 'members', 'undoc-members', 'show-inheritance', 'show-module-summary', 'special-members', 'imported-members', 'show-inheritance-diagram' ]
 autoapi_python_class_content = 'both'
 

@@ -3,8 +3,8 @@ A copy of example 3 from the usage guide
 This file can be ran individually or as part of the test
 """
 
-from plasmidcanvas.plasmid import Plasmid
-from plasmidcanvas.feature import ArrowFeature, RectangleFeature, RestrictionSite, MultiPairFeature
+from plasmideasel.plasmid import Plasmid
+from plasmideasel.feature import ArrowFeature, RectangleFeature, RestrictionSite, MultiPairFeature
 
 def get_curved_plasmid() -> Plasmid:
 

@@ -5,9 +5,9 @@ from matplotlib.patches import FancyArrowPatch, Polygon, RegularPolygon, Wedge
 import numpy as np
 import math
 
-from plasmidcanvas._utils import circular_length, circular_midpoint, to_counter_clockwise
-from plasmidcanvas._curvedtext import CurvedText
-from plasmidcanvas._utils import DEFAULT_LABEL_FONT_SIZE, DEFAULT_LABEL_TEXT_STYLE
+from plasmideasel._utils import circular_length, circular_midpoint, to_counter_clockwise
+from plasmideasel._curvedtext import CurvedText
+from plasmideasel._utils import DEFAULT_LABEL_FONT_SIZE, DEFAULT_LABEL_TEXT_STYLE
 
 # ==================================
 # Abstract Feature Classes

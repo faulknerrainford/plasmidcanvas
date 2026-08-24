@@ -10,7 +10,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
 from kivy.uix.image import Image
 from kivy.uix.boxlayout import BoxLayout
-from plasmidcanvas import Plasmid
+from plasmideasel import Plasmid
 from kivy.lang import Builder
 
 

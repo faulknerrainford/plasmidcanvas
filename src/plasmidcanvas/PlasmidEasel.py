@@ -331,7 +331,41 @@ class GeneralPanel(ttk.Frame):
         apply.grid(row=3, column=0, sticky='nsew', pady=5, padx=5)
 
 class TablePanel(ttk.Frame):
+    """
+    A control panel providing the editable feature table and row-management controls.
+
+    Hosts a ``DFTable``, a ``RowPanel`` for per-row deletion, and buttons for
+    adding rows, deleting rows by name, undoing deletions, applying changes to
+    the plasmid and saving data.
+
+    Parameters
+    ----------
+    master : ttk.Notebook, optional
+        The parent notebook widget.
+
+    Attributes
+    ----------
+    Easel : PlasmidEasel
+        Reference to the top-level application window.
+    Table : DFTable or None
+        The active editable table widget; None until ``load_data`` is called.
+    delete_var : tk.StringVar or None
+        Holds the currently selected delete-target string.
+    undo_delete_button : ttk.Button or None
+        Enabled when deletions are available to undo.
+    delete_select : ttk.Combobox or None
+        Lists rows available for deletion by index and name.
+    """
+
     def __init__(self, master: ttk.Notebook =None):
+        """
+        Initialise the panel with empty attribute placeholders.
+
+        Parameters
+        ----------
+        master : ttk.Notebook, optional
+            The parent notebook widget.
+        """
         super().__init__(master)
         self.Easel: PlasmidEasel | Misc | None = self.master.master
         self.Table: DFTable | None = None
@@ -340,6 +374,12 @@ class TablePanel(ttk.Frame):
         self.delete_select: ttk.Combobox | None = None
 
     def load_data(self):
+        """
+        Build the DFTable and all row-management controls from ``Easel.PLASMID_DF``.
+
+        Replaces any existing table with a freshly constructed ``DFTable`` and
+        ``RowPanel``, then lays out Apply, Add Row, Save Data and Delete controls.
+        """
         if self.Table:
             self.Table.grid_forget()
         self.Table = DFTable(self, self.Easel.PLASMID_DF,
@@ -366,6 +406,14 @@ class TablePanel(ttk.Frame):
         self.delete_select.grid(row=0, column=1, sticky='nsew', pady=5, padx=5)
 
     def add_row(self, log=True):
+        """
+        Append a blank row to the table and refresh the delete combobox.
+
+        Parameters
+        ----------
+        log : bool, optional
+            If ``True`` (default), records the operation in the undo history.
+        """
         self.Table.add_row()
         self.RowPanel.add_row()
         self.delete_select['values']= tuple([str(ind.get())+'. '+label.get() for ind, label in zip(self.Table.table_df['index'],self.Table.table_df['name'])])
@@ -373,6 +421,14 @@ class TablePanel(ttk.Frame):
             self.master.Easel.command_add(("ADD_ROW"))
 
     def delete_row(self, log=True):
+        """
+        Delete the row currently selected in the delete combobox.
+
+        Parameters
+        ----------
+        log : bool, optional
+            If ``True`` (default), records the operation in the undo history.
+        """
         ind, label = self.delete_var.get().split('. ')
         ind = int(ind)
         command = ("DELETE", ind, label, self.Table.rows.copy(), self.Table.table_df.copy())
@@ -383,18 +439,40 @@ class TablePanel(ttk.Frame):
         self.delete_select['values']= tuple([str(ind.get())+'. '+label.get() for ind, label in zip(self.Table.table_df['index'],self.Table.table_df['name'])])
 
     def undo_delete(self, index=None, label=None):
+        """
+        Restore the most recent (or specified) deleted row.
+
+        Parameters
+        ----------
+        index : int, optional
+            0-based index of the row to restore.
+        label : str, optional
+            ``'name'`` column value of the row to restore.
+        """
         self.Table.undo_delete_row(index, label)
         self.delete_select['values']= tuple([str(ind.get())+'. '+label.get() for ind, label in zip(self.Table.table_df['index'],self.Table.table_df['name'])])
         if len(self.Table.deleted_rows) == 0:
             self.undo_delete_button.config(state=tk.DISABLED)
 
     def apply_to_plasmid(self):
+        """
+        Flush table edits to the plasmid model and trigger a redraw.
+
+        Calls ``update_table`` on the ``DFTable``, updates ``Easel.PLASMID_DF``,
+        invokes ``update_plasmid``, and resets the undo-delete button state.
+        """
         self.Easel.PLASMID_DF = self.Table.update_table()
         self.Easel.update_plasmid()
         self.undo_delete_button.config(state=tk.DISABLED)
         self.delete_select['values']= tuple([str(ind.get())+'. '+label.get() for ind, label in zip(self.Table.table_df['index'],self.Table.table_df['name'])])
 
     def save_data(self):
+        """
+        Save the current table data to a file.
+
+        .. note::
+            Not yet implemented.
+        """
         pass
 
 
@@ -486,6 +564,13 @@ class RowPanel(ttk.Frame):
         self.add_row()
 
     def add_row(self):
+        """
+        Show or create a delete button for a newly added table row.
+
+        If a previously hidden button exists it is re-gridded at the correct
+        position; otherwise a new button is created and appended to
+        ``self.buttons``.
+        """
         row_count = self.Table.table_df.shape[0]
         if len(self.buttons) >= row_count:
             self.buttons[row_count-1].grid(row=row_count, column=0, sticky='nsew', pady=4, padx=5)

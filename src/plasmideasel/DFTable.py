@@ -4,8 +4,9 @@ import pandas as pd
 from ttkbootstrap.constants import *
 from ttkbootstrap.validation import *
 
+column_widths = {'name':15, 'type':20, 'direction':5, 'start':8, 'end':8, 'colour':10}
 
-def columnTypeToVariable(var_type, value):
+def columnTypeToVariable(var_type, value=True):
     """
     Convert a column type string to the appropriate tkinter variable.
 
@@ -31,6 +32,8 @@ def columnTypeToVariable(var_type, value):
         return tk.DoubleVar(None, value)
     elif var_type == 'Boolean':
         return tk.BooleanVar(None, value)
+    elif var_type == 'Select':
+        return ttk.BooleanVar(None, True)
     else:
         return tk.StringVar(None, value)
 
@@ -88,7 +91,7 @@ class DFTable(ttk.Frame):
         Stack of deleted-row snapshots used for undo operations.
     """
 
-    def __init__(self, master=None, df=None, col_types=None):
+    def __init__(self, master=None, df=None, col_types=None, col_widths=None):
         """
         Initialise the DFTable and render column headers and rows.
 
@@ -104,14 +107,22 @@ class DFTable(ttk.Frame):
         super().__init__(master)
         if col_types is None:
             col_types = []
+        if col_widths is None:
+            col_widths = {}
+
         self.master = master
         self.df: pd.DataFrame = df
         self.table_df: pd.DataFrame | None = pd.DataFrame(None, index=self.df.index, columns=self.df.columns)
         self.rows = []
         self.column_types = col_types
+        self.col_widths = col_widths
         self.deleted_rows = []
+
         if 'index' not in self.df.columns:
             self.update_index(init=True)
+        if 'show' not in self.df.columns:
+            self.df['show'] = None
+            self.table_df['show'] = None
 
         # Set up headers
         grid_col = 0
@@ -126,8 +137,10 @@ class DFTable(ttk.Frame):
 
         # for each row generate row object and pack
         for i in range(self.df.shape[0]):
-            row = DFRow(self, i)
+            row = DFRow(self, i, col_widths)
             self.rows.append(row)
+
+
 
     # update function for table, updates all rows
     def update_table(self) -> pd.DataFrame:
@@ -280,7 +293,7 @@ class DFTable(ttk.Frame):
 class DFRow(ttk.Frame):
     """
     A logical row within a DFTable that owns the tkinter variables and widgets
-    for a single DataFrame row.
+    for a single DataFrame row. We add a select column to all rows
 
     Parameters
     ----------
@@ -303,7 +316,7 @@ class DFRow(ttk.Frame):
         Entry (or Label for the index column) widgets for each cell.
     """
 
-    def __init__(self, master: DFTable, row_index: int, init=True):
+    def __init__(self, master: DFTable, row_index: int, col_widths: dict = None, init=True):
         """
         Create variables and entry widgets for one DataFrame row.
 
@@ -313,6 +326,8 @@ class DFRow(ttk.Frame):
             The parent DFTable.
         row_index : int, optional
             0-based index of this row.
+        col_widths : dict, optional
+            Column widths mapping.
         init : bool, optional
             If ``True``, values are taken from the DataFrame. If ``False``,
             a blank row is created by copying variable types from the
@@ -344,13 +359,19 @@ class DFRow(ttk.Frame):
                 entry = ttk.Label(master, textvariable=var, bootstyle='secondary')
                 self.entries.append(entry)
                 self.entries[i].grid(row=self.row + 1, column=i, sticky='NSEW', padx=5, pady=5)
+            elif master.df.columns[i] == 'show':
+                entry = ttk.Checkbutton(master, style='Roundtoggle.Toolbutton', variable=var)
+                self.entries.append(entry)
+                self.entries[i].grid(row=self.row + 1, column=i, sticky='NSEW', padx=5, pady=5)
             else:
-                entry = ttk.Entry(master, textvariable=var)
+                entry = ttk.Entry(master, textvariable=var, width=column_widths[master.df.columns[i]])
                 add_validation(entry, col_type)
                 self.entries.append(entry)
                 self.entries[i].grid(row=self.row + 1, column=i, sticky=W, padx=5, pady=5)
+
             # Add row variables to variables df
             master.table_df.iat[self.row, i] = var # type: ignore[call-overload]
+
 
     # create update function for row, update df from string vars
     def update_row(self):

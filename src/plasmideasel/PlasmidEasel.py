@@ -107,8 +107,10 @@ class PlasmidEasel(ttk.Window):
         controlpannels = ttk.Notebook(self, bootstyle="secondary")
         general = GeneralPanel(controlpannels)
         self.table = TablePanel(controlpannels)
+        self.features = FeaturePanel(controlpannels)
         controlpannels.add(general, text="General")
         controlpannels.add(self.table, text="Table")
+        controlpannels.add(self.features, text="Features")
         controlpannels.grid(row=0, column=1, sticky='nsew')
         controlpannels.columnconfigure(0, weight=1)
         controlpannels.rowconfigure(0, weight=1)
@@ -156,6 +158,7 @@ class PlasmidEasel(ttk.Window):
             self.PLASMID_DF = plasmid_df
 
         self.table.load_data()
+        self.features.load_data()
         self.PLASMID = draw_plasmid(self.PLASMID_DF, self.plasmid_title.get(), self.plasmid_bps.get(),
                                     self.plasmid_style.get())
         self.redraw_plasmid()
@@ -383,7 +386,7 @@ class TablePanel(ttk.Frame):
         if self.Table:
             self.Table.grid_forget()
         self.Table = DFTable(self, self.Easel.PLASMID_DF,
-                             ['Int', 'String', 'String', 'Int', 'Int', 'Int', 'String'])
+                             ['Int', 'String', 'String', 'Int', 'Int', 'Int', 'String', 'Select'])
         self.Table.grid(row=0, column=0, sticky='nsew', pady=5, padx=5, columnspan=4)
         self.RowPanel = RowPanel(self)
         self.RowPanel.grid(row=0, column=4, sticky='ew', pady=5, padx=5)
@@ -580,6 +583,164 @@ class RowPanel(ttk.Frame):
             button.grid(row=row_count, column=0, sticky='nsew', pady=4, padx=5)
             self.buttons.append(button)
 
+
+class FeaturePanel(ttk.Frame):
+    """
+    A control panel for filtering features by type.
+
+    Displays checkboxes for each unique feature type in the DataFrame.
+    Toggling a type checkbox sets all features of that type's 'show'
+    column to match the toggle state. Individual toggles remain editable.
+
+    Parameters
+    ----------
+    master : ttk.Notebook, optional
+        The parent notebook widget.
+
+    Attributes
+    ----------
+    Easel : PlasmidEasel
+        Reference to the top-level application window.
+    type_toggles : dict
+        Maps feature type string to tk.BooleanVar toggle state.
+    type_frames : dict
+        Maps feature type string to its frame widget for updates.
+    """
+
+    def __init__(self, master: ttk.Notebook = None):
+        """
+        Initialise the feature filter panel with empty placeholders.
+
+        Parameters
+        ----------
+        master : ttk.Notebook, optional
+            The parent notebook widget.
+        """
+        super().__init__(master)
+        self.Easel = self.master.master
+        self.type_toggles = {}
+        self.type_frames = {}
+        self.columnconfigure(0, weight=1)
+
+    def load_data(self):
+        """
+        Build the feature type toggles from unique types in PLASMID_DF.
+
+        Clears existing toggles and creates a new one for each unique
+        feature type. Each toggle controls the 'show' column for all
+        rows of that type.
+        """
+        # Clear existing toggles
+        for widget in self.winfo_children():
+            widget.grid_forget()
+        self.type_toggles.clear()
+        self.type_frames.clear()
+
+        # Get unique types from DataFrame
+        if self.Easel.PLASMID_DF.empty or 'type' not in self.Easel.PLASMID_DF.columns:
+            empty_label = ttk.Label(self, text='No features loaded')
+            empty_label.grid(row=0, column=0, sticky='nsew', pady=5, padx=5)
+            return
+
+        unique_types = sorted(self.Easel.PLASMID_DF['type'].unique())
+
+        # Create a scrollable frame for many feature types
+        canvas = ttk.Canvas(self)
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Create toggle for each type
+        for idx, feature_type in enumerate(unique_types):
+            var = ttk.BooleanVar(value=True)
+            self.type_toggles[feature_type] = var
+
+            callback = partial(self.on_type_toggle, feature_type)
+            checkbox = ttk.Checkbutton(
+                scrollable_frame,
+                text=feature_type,
+                variable=var,
+                command=callback,
+                bootstyle="info"
+            )
+            checkbox.grid(row=idx, column=0, sticky='w', pady=5, padx=10)
+
+        canvas.grid(row=0, column=0, sticky='nsew', rowspan=2)
+        scrollbar.grid(row=0, column=1, sticky='ns', rowspan=2)
+
+        # Add buttons
+        select_all = ttk.Button(
+            self,
+            text='Select All',
+            command=self.select_all_types
+        )
+        select_all.grid(row=2, column=0, sticky='ew', pady=5, padx=5)
+
+        deselect_all = ttk.Button(
+            self,
+            text='Deselect All',
+            command=self.deselect_all_types
+        )
+        deselect_all.grid(row=3, column=0, sticky='ew', pady=5, padx=5)
+
+        apply_button = ttk.Button(
+            self,
+            text='Apply to Plasmid',
+            command=self.apply_filters
+        )
+        apply_button.grid(row=4, column=0, sticky='ew', pady=5, padx=5)
+
+    def on_type_toggle(self, feature_type):
+        """
+        Handle type toggle change by updating all rows of that type.
+
+        Sets the 'show' column value for all features matching
+        feature_type to the current toggle state.
+
+        Parameters
+        ----------
+        feature_type : str
+            The feature type being toggled.
+        """
+        state = self.type_toggles[feature_type].get()
+
+        # Update all rows of this type in the table
+        if self.Easel.table and self.Easel.table.Table:
+            table_df = self.Easel.table.Table.table_df
+
+            for idx, row in table_df.iterrows():
+                if row['type'].get() == feature_type:
+                    # Update the 'show' column (last column before delete)
+                    if 'show' in table_df.columns:
+                        row['show'].set(state)
+
+    def select_all_types(self):
+        """Enable all feature type toggles."""
+        for var in self.type_toggles.values():
+            var.set(True)
+            # Trigger callbacks manually
+        for feature_type in self.type_toggles:
+            self.on_type_toggle(feature_type)
+
+    def deselect_all_types(self):
+        """Disable all feature type toggles."""
+        for var in self.type_toggles.values():
+            var.set(False)
+            # Trigger callbacks manually
+        for feature_type in self.type_toggles:
+            self.on_type_toggle(feature_type)
+
+    def apply_filters(self):
+        """Apply feature filters to the plasmid display."""
+        if self.Easel.table:
+            self.Easel.table.apply_to_plasmid()
 
 if __name__ == '__main__':
     easel = PlasmidEasel()

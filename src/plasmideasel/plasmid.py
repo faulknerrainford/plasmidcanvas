@@ -25,13 +25,14 @@ def draw_plasmid(df, title, bp_size, style="default"):
         df["label_adjustments"] = label_collision_adjustments
         for row in df.iterrows():
             row = row[1]
-            if abs(row["start"]-row["end"])<10 or row["direction"]==0:
-                feature = RectangleFeature(row["name"], row["start"], row["end"])
-            else:
-                feature = ArrowFeature(row["name"], row["start"], row["end"], direction=row["direction"])
-            feature.set_color(row['colour'])
-            feature.set_label_adjustment(row["label_adjustments"])
-            plasmid.add_feature(feature)
+            if row["show"]:
+                if abs(row["start"]-row["end"])<10 or row["direction"]==0:
+                    feature = RectangleFeature(row["name"], row["start"], row["end"])
+                else:
+                    feature = ArrowFeature(row["name"], row["start"], row["end"], direction=row["direction"])
+                feature.set_color(row['colour'])
+                feature.set_label_adjustment(row["label_adjustments"])
+                plasmid.add_feature(feature)
     return plasmid
 
 

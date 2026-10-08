@@ -1,10 +1,11 @@
 import tkinter as tk
+from tkinter import colorchooser
 import ttkbootstrap as ttk
 import pandas as pd
 from ttkbootstrap.constants import *
 from ttkbootstrap.validation import *
 
-column_widths = {'name':15, 'type':20, 'direction':5, 'start':8, 'end':8, 'colour':10}
+column_widths = {'name':15, 'type':20, 'direction':5, 'start':8, 'end':8, 'colour':10, 'delete':3}
 
 def columnTypeToVariable(var_type, value=True):
     """
@@ -14,7 +15,7 @@ def columnTypeToVariable(var_type, value=True):
     ----------
     var_type : str
         The column type. One of ``'String'``, ``'Int'``, ``'Float'``,
-        ``'Boolean'``. Unrecognised values fall back to ``StringVar``.
+        ``'Boolean'``, ``'Colour'``. Unrecognised values fall back to ``StringVar``.
     value : any
         The initial value assigned to the variable.
 
@@ -34,6 +35,8 @@ def columnTypeToVariable(var_type, value=True):
         return tk.BooleanVar(None, value)
     elif var_type == 'Select':
         return ttk.BooleanVar(None, True)
+    elif var_type == 'Colour':
+        return tk.StringVar(None, value)
     else:
         return tk.StringVar(None, value)
 
@@ -91,7 +94,7 @@ class DFTable(ttk.Frame):
         Stack of deleted-row snapshots used for undo operations.
     """
 
-    def __init__(self, master=None, df=None, col_types=None, col_widths=None):
+    def __init__(self, master=None, df=None, col_types=None, col_widths=None, on_delete=None):
         """
         Initialise the DFTable and render column headers and rows.
 
@@ -103,6 +106,8 @@ class DFTable(ttk.Frame):
             The DataFrame to display.
         col_types : list of str, optional
             Per-column type strings for variable creation and validation.
+        on_delete : callable, optional
+            Callback function called when a row is deleted. Takes (index, name) as arguments.
         """
         super().__init__(master)
         if col_types is None:
@@ -117,12 +122,16 @@ class DFTable(ttk.Frame):
         self.column_types = col_types
         self.col_widths = col_widths
         self.deleted_rows = []
+        self.on_delete = on_delete
 
         if 'index' not in self.df.columns:
             self.update_index(init=True)
         if 'show' not in self.df.columns:
             self.df['show'] = None
             self.table_df['show'] = None
+        if 'delete' not in self.df.columns:
+            self.df['delete'] = None
+            self.table_df['delete'] = None
 
         # Set up headers
         grid_col = 0
@@ -290,6 +299,108 @@ class DFTable(ttk.Frame):
                 entry.grid(row=row.row + 1, column=row.entries.index(entry), sticky=W, padx=5, pady=5)
 
 
+class ColourPickerLabel(ttk.Label):
+    """
+    A label widget that displays a colour and opens a colour picker when clicked.
+    
+    Parameters
+    ----------
+    master : tk.Widget
+        The parent widget.
+    variable : tk.StringVar
+        The tkinter variable holding the colour value.
+    """
+    
+    def __init__(self, master, variable, **kwargs):
+        """
+        Create a colour picker label.
+        
+        Parameters
+        ----------
+        master : tk.Widget
+            The parent widget.
+        variable : tk.StringVar
+            The tkinter variable holding the colour value.
+        **kwargs
+            Additional keyword arguments for ttk.Label.
+        """
+        super().__init__(master, **kwargs)
+        self.variable = variable
+        self.config(text='  ', relief='solid', borderwidth=1)
+        self._update_background()
+        self.bind('<Button-1>', self._open_colour_picker)
+        # Update background when variable changes
+        self.variable.trace_add('write', lambda *args: self._update_background())
+    
+    def _update_background(self):
+        """Update the label background to match the colour variable."""
+        try:
+            colour = self.variable.get()
+            self.config(background=colour)
+        except tk.TclError:
+            # Invalid colour, ignore
+            pass
+    
+    def _open_colour_picker(self, event):
+        """Open a colour picker dialog."""
+        current_colour = self.variable.get()
+        colour_choice = colorchooser.askcolor(color=current_colour, title='Choose a colour')
+        if colour_choice[1]:  # User selected a colour (not cancelled)
+            self.variable.set(colour_choice[1])
+
+
+class ColourPickerWidget(ttk.Frame):
+    """
+    A combined widget with colour swatch and text entry for colour values.
+    
+    Displays a clickable colour swatch alongside a text entry showing the
+    hex or named colour value. User can either click the swatch to pick
+    colours visually or type colour values directly.
+    
+    Parameters
+    ----------
+    master : tk.Widget
+        The parent widget.
+    variable : tk.StringVar
+        The tkinter variable holding the colour value.
+    **kwargs
+        Additional keyword arguments for ttk.Frame.
+    """
+    
+    def __init__(self, master, variable, **kwargs):
+        """
+        Create a colour picker widget with swatch and entry.
+        
+        Parameters
+        ----------
+        master : tk.Widget
+            The parent widget.
+        variable : tk.StringVar
+            The tkinter variable holding the colour value.
+        **kwargs
+            Additional keyword arguments for ttk.Frame.
+        """
+        super().__init__(master, **kwargs)
+        self.variable = variable
+        
+        # Create colour swatch (clickable label)
+        self.swatch = ColourPickerLabel(self, variable, width=3)
+        self.swatch.pack(side='left', padx=(0, 5))
+        
+        # Create text entry for colour value
+        self.entry = ttk.Entry(self, textvariable=variable, width=15)
+        self.entry.pack(side='left', fill='x', expand=True)
+        
+        # Update entry when variable changes (handles picker changes)
+        self.variable.trace_add('write', lambda *args: self._on_variable_change())
+    
+    def _on_variable_change(self):
+        """Update entry when variable changes (e.g., from colour picker)."""
+        # The entry widget automatically updates due to textvariable binding,
+        # but we could add additional validation here if needed
+        pass
+
+
 class DFRow(ttk.Frame):
     """
     A logical row within a DFTable that owns the tkinter variables and widgets
@@ -363,6 +474,14 @@ class DFRow(ttk.Frame):
                 entry = ttk.Checkbutton(master, style='Roundtoggle.Toolbutton', variable=var)
                 self.entries.append(entry)
                 self.entries[i].grid(row=self.row + 1, column=i, sticky='NSEW', padx=5, pady=5)
+            elif master.df.columns[i] == 'delete':
+                entry = ttk.Button(master, text='✕', width=2, command=lambda row_obj=self: row_obj._delete_row())
+                self.entries.append(entry)
+                self.entries[i].grid(row=self.row + 1, column=i, sticky='NSEW', padx=2, pady=5)
+            elif master.df.columns[i] in ['colour', 'color']:
+                entry = ColourPickerWidget(master, var)
+                self.entries.append(entry)
+                self.entries[i].grid(row=self.row + 1, column=i, sticky='EW', padx=5, pady=5)
             else:
                 entry = ttk.Entry(master, textvariable=var, width=column_widths[master.df.columns[i]])
                 add_validation(entry, col_type)
@@ -371,6 +490,27 @@ class DFRow(ttk.Frame):
 
             # Add row variables to variables df
             master.table_df.iat[self.row, i] = var # type: ignore[call-overload]
+
+    def _delete_row(self):
+       """
+       Delete this row from the table by finding its current position.
+       """
+       # Find this row's current position in the rows list
+       try:
+           current_index = self.master.rows.index(self)
+       except ValueError:
+           # Row already deleted
+           return
+        
+       # Get the name of the row
+       name = self.master.table_df.iloc[current_index]['name'].get()
+        
+       # Call the on_delete callback if provided (for undo/redo logging)
+       if self.master.on_delete:
+           self.master.on_delete(current_index, name)
+       else:
+           # Call delete on the DFTable with 0-based index and index_1=False
+           self.master.delete_row(current_index, name, index_1=False)
 
 
     # create update function for row, update df from string vars

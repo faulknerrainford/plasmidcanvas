@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 import ttkbootstrap as ttk
 import pandas as pd
 from ttkbootstrap.constants import *
@@ -25,6 +25,14 @@ class PlasmidEasel(ttk.Window):
         The current plasmid name.
     plasmid_bps : tk.IntVar
         The current plasmid length in base pairs.
+    show_ticks : tk.BooleanVar
+        Whether to show ticks on the plasmid (controls tick_style: 'auto' or 'none').
+    title_font_size : tk.IntVar
+        Font size for the plasmid title.
+    label_font_size : tk.IntVar
+        Font size for feature labels and tick labels.
+    include_bp_in_labels : tk.StringVar
+        Whether to include base pair position in feature labels (``'bases'`` or ``'text_only'``).
     PLASMID : Plasmid
         The Plasmid model object being visualised.
     PLASMID_DF : pd.DataFrame or None
@@ -64,6 +72,10 @@ class PlasmidEasel(ttk.Window):
         self.FIG.set_size_inches(self.fig_size[0], self.fig_size[1])
         self.canvas_figures = []
         self.plasmid_style = tk.StringVar(None, 'default')
+        self.show_ticks = tk.BooleanVar(None, True)
+        self.title_font_size = tk.IntVar(None, 14)
+        self.label_font_size = tk.IntVar(None, 7)
+        self.include_bp_in_labels = tk.StringVar(None, 'bases')
         self.rowconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
         self.commands_log: list[tuple] = [()]
@@ -143,15 +155,25 @@ class PlasmidEasel(ttk.Window):
             i = 0
             for feature in sequence.features:
                 # For each feature get: name, type, start, end, direction and colour
-                name = feature.qualifiers['label'][0]
+                # Try to extract feature name from qualifiers in order of preference
+                if 'label' in feature.qualifiers:
+                    name = feature.qualifiers['label'][0]
+                elif 'product' in feature.qualifiers:
+                    name = feature.qualifiers['product'][0]
+                elif 'gene' in feature.qualifiers:
+                    name = feature.qualifiers['gene'][0]
+                else:
+                    name = feature.type
                 type = feature.type
                 start = feature.location.start
                 end = feature.location.end
-                direction = feature.strand
+                direction = feature.location.strand if feature.location.strand is not None else 0
                 colour = 'black'
+                # Look for colour qualifiers (case-insensitive, handles both 'color' and 'colour')
                 for col in feature.qualifiers.keys():
-                    if "color" in col:
+                    if 'color' in col.lower():
                         colour = feature.qualifiers[col][0]
+                        break
                 # form row and add to dataframe
                 plasmid_df.loc[len(plasmid_df)] = [i, name, type, start, end, direction, colour]
                 i += 1
@@ -204,6 +226,13 @@ class PlasmidEasel(ttk.Window):
         self.command_add(("GENERAL_PLASMID_UPDATE", self.PLASMID, self.plasmid_title.get(), self.plasmid_bps.get()))
         self.PLASMID = draw_plasmid(self.PLASMID_DF, self.plasmid_title.get(), self.plasmid_bps.get(),
                                     self.plasmid_style.get())
+        tick_marker_style = 'auto' if self.show_ticks.get() else 'none'
+        self.PLASMID.set_tick_style(tick_marker_style)
+        self.PLASMID.set_marker_style(tick_marker_style)
+        self.PLASMID.set_title_font_size(self.title_font_size.get())
+        self.PLASMID.set_marker_label_font_size(self.label_font_size.get())
+        self.PLASMID.set_feature_label_font_size(self.label_font_size.get())
+        self.PLASMID.set_feature_label_style(self.include_bp_in_labels.get())
         self.redraw_plasmid()
         self.focus_get().focus_set()
 
@@ -246,10 +275,11 @@ class PlasmidEasel(ttk.Window):
                 self.redraw_plasmid()
                 self.focus_get().focus_set()
             elif command[0] == "DELETE":
-                self.table.RowPanel.undo_delete_row(command[1], command[2], command[3], command[4])
+                # Undo delete by restoring the row data
+                self.table.Table.undo_delete_row(command[1], command[2], command[3], command[4])
             elif command[0] == "ADD_ROW":
                 ind = self.table.Table.table_df.shape[0] - 1
-                self.table.RowPanel.delete_row(ind, log=False)
+                self.table.Table.delete_row(ind + 1, self.table.Table.table_df.iloc[ind]['name'].get(), index_1=True, log=False)
             self.commands_pointer -= 1
         self.edit.entryconfig('Redo', state=tk.NORMAL)
         if self.commands_pointer == 0:
@@ -275,8 +305,8 @@ class PlasmidEasel(ttk.Window):
                 self.redraw_plasmid()
                 self.focus_get().focus_set()
             elif command[0] == "DELETE":
-                self.table.RowPanel.delete_row(command[1], log=False)
-                pass
+                # Redo delete by deleting the row again
+                self.table.Table.delete_row(command[1], command[2], index_1=True)
             elif command[0] == "ADD_ROW":
                 self.table.add_row(log=False)
 
@@ -286,8 +316,8 @@ class GeneralPanel(ttk.Frame):
     A control panel for editing high-level plasmid properties.
 
     Provides style-selection radio buttons, plasmid title and base-pair-size
-    inputs, and an Apply button. All controls are bound to the parent
-    ``PlasmidEasel`` instance.
+    inputs, font size controls, tick label display option, and label formatting
+    options. All controls are bound to the parent ``PlasmidEasel`` instance.
 
     Parameters
     ----------
@@ -329,9 +359,36 @@ class GeneralPanel(ttk.Frame):
         self.bps_input = ttk.Entry(self, textvariable=self.Easel.plasmid_bps)
         add_numeric_validation(self.bps_input, when='key')
         self.bps_input.grid(row=2, column=1, sticky='nsew', pady=5, padx=5)
+        
+        # Title Font Size
+        title_font_label = ttk.Label(self, text='Title Font Size', font=('Arial', 12))
+        title_font_label.grid(row=3, column=0, sticky='nsew', pady=5, padx=5)
+        self.title_font_input = ttk.Spinbox(self, from_=6, to=32, textvariable=self.Easel.title_font_size, 
+                                             command=self.Easel.update_plasmid, width=10)
+        self.title_font_input.grid(row=3, column=1, sticky='nsew', pady=5, padx=5)
+        
+        # Label Font Size
+        label_font_label = ttk.Label(self, text='Label Font Size', font=('Arial', 12))
+        label_font_label.grid(row=4, column=0, sticky='nsew', pady=5, padx=5)
+        self.label_font_input = ttk.Spinbox(self, from_=4, to=24, textvariable=self.Easel.label_font_size, 
+                                             command=self.Easel.update_plasmid, width=10)
+        self.label_font_input.grid(row=4, column=1, sticky='nsew', pady=5, padx=5)
+        
+        # Show Ticks Checkbox
+        self.ticks_check = ttk.Checkbutton(self, text='Show Ticks', variable=self.Easel.show_ticks,
+                                           command=self.Easel.update_plasmid)
+        self.ticks_check.grid(row=5, column=0, sticky='nsew', pady=5, padx=5, columnspan=2)
+        
+        # Include BP in Labels Checkbox
+        self.bp_labels_check = ttk.Checkbutton(self, text='Include BP Position in Labels', 
+                                               variable=self.Easel.include_bp_in_labels, 
+                                               onvalue='bases', offvalue='text_only',
+                                               command=self.Easel.update_plasmid)
+        self.bp_labels_check.grid(row=6, column=0, sticky='nsew', pady=5, padx=5, columnspan=2)
+        
         # Update plasmid with new labels
         apply = ttk.Button(self, command=self.Easel.update_plasmid, text='Apply')
-        apply.grid(row=3, column=0, sticky='nsew', pady=5, padx=5)
+        apply.grid(row=7, column=0, sticky='nsew', pady=5, padx=5)
 
 class TablePanel(ttk.Frame):
     """
@@ -370,8 +427,12 @@ class TablePanel(ttk.Frame):
             The parent notebook widget.
         """
         super().__init__(master)
+        # Configure grid weights for resizing
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
         self.Easel: PlasmidEasel | Misc | None = self.master.master
         self.Table: DFTable | None = None
+        self.table_frame: ttk.Frame | None = None
         self.delete_var: tk.StringVar | None = None
         self.undo_delete_button: ttk.Button | None = None
         self.delete_select: ttk.Combobox | None = None
@@ -381,15 +442,67 @@ class TablePanel(ttk.Frame):
         Build the DFTable and all row-management controls from ``Easel.PLASMID_DF``.
 
         Replaces any existing table with a freshly constructed ``DFTable`` and
-        ``RowPanel``, then lays out Apply, Add Row, Save Data and Delete controls.
+        wraps it with a scrollbar for vertical scrolling.
         """
-        if self.Table:
-            self.Table.grid_forget()
-        self.Table = DFTable(self, self.Easel.PLASMID_DF,
-                             ['Int', 'String', 'String', 'Int', 'Int', 'Int', 'String', 'Select'])
-        self.Table.grid(row=0, column=0, sticky='nsew', pady=5, padx=5, columnspan=4)
-        self.RowPanel = RowPanel(self)
-        self.RowPanel.grid(row=0, column=4, sticky='ew', pady=5, padx=5)
+        if hasattr(self, 'table_frame') and self.table_frame:
+            self.table_frame.grid_forget()
+        
+        # Create frame to hold canvas and scrollbar
+        self.table_frame = ttk.Frame(self)
+        self.table_frame.grid(row=0, column=0, sticky='nsew', pady=5, padx=5, columnspan=4)
+        self.table_frame.grid_rowconfigure(0, weight=1)
+        self.table_frame.grid_columnconfigure(0, weight=1)
+        
+        # Create canvas and scrollbar with specific height
+        canvas = tk.Canvas(self.table_frame, highlightthickness=0, bg='white', height=400)
+        scrollbar = ttk.Scrollbar(self.table_frame, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Grid canvas and scrollbar
+        canvas.grid(row=0, column=0, sticky='nsew')
+        scrollbar.grid(row=0, column=1, sticky='nsew')
+        
+        # Create the table inside the canvas
+        def on_delete_row(index, name):
+            """Handle row deletion with undo/redo logging."""
+            command = ("DELETE", index + 1, name, self.Table.rows.copy(), self.Table.table_df.copy())
+            self.Easel.command_add(command)
+            self.Table.delete_row(index, name, index_1=False)
+        
+        self.Table = DFTable(canvas, self.Easel.PLASMID_DF,
+                             ['Int', 'String', 'String', 'Int', 'Int', 'Int', 'Colour', 'Select', 'String'],
+                             on_delete=on_delete_row)
+        self.table_window = canvas.create_window(0, 0, window=self.Table, anchor='nw')
+        
+        # Update scroll region when table is configured
+        def on_table_configure(event):
+            canvas.configure(scrollregion=canvas.bbox('all'))
+        
+        self.Table.bind('<Configure>', on_table_configure)
+        # Initial scroll region update
+        canvas.configure(scrollregion=canvas.bbox('all'))
+        
+        # Enable mouse wheel scrolling with proper event handling
+        def on_mousewheel(event):
+            # Windows and MacOS use event.delta (positive = up, negative = down)
+            if hasattr(event, 'delta') and event.delta != 0:
+                # Scroll up on positive delta, down on negative delta
+                canvas.yview_scroll(-1 if event.delta > 0 else 1, 'units')
+            # Linux uses event.num (4 = up, 5 = down)
+            elif hasattr(event, 'num'):
+                canvas.yview_scroll(-1 if event.num == 4 else 1, 'units')
+            return 'break'  # Prevent event propagation
+        
+        # Bind mousewheel to canvas
+        canvas.bind('<MouseWheel>', on_mousewheel)
+        canvas.bind('<Button-4>', on_mousewheel)
+        canvas.bind('<Button-5>', on_mousewheel)
+        
+        # Also bind to the table itself so scrolling works when mouse is over table
+        self.Table.bind('<MouseWheel>', on_mousewheel)
+        self.Table.bind('<Button-4>', on_mousewheel)
+        self.Table.bind('<Button-5>', on_mousewheel)
+        
         # Add buttons for save data, add row, delete row and undo delete
         apply_button = ttk.Button(self, text='Apply to Plasmid', command=self.apply_to_plasmid)
         apply_button.grid(row=1, column=0, sticky='nsew', pady=5, padx=5)
@@ -397,16 +510,6 @@ class TablePanel(ttk.Frame):
         add_button.grid(row=1, column=1, sticky='nsew', pady=5, padx=5)
         save_button = ttk.Button(self, text='Save Data', command=self.save_data)
         save_button.grid(row=1, column=2, sticky='nsew', pady=5, padx=5)
-        self.delete_var = ttk.StringVar()
-        delete_frame = ttk.Labelframe(self, text='Delete', bootstyle='info')
-        delete_frame.grid(row=1, column=3, sticky='nsew', pady=5, padx=5, columnspan=1)
-        delete_button = ttk.Button(delete_frame, text='Delete Row', command=self.delete_row)
-        delete_button.grid(row=0, column=0, sticky='nsew', pady=5, padx=5)
-        self.undo_delete_button = ttk.Button(delete_frame, text='Undo Delete', command=self.undo_delete, state=tk.DISABLED)
-        self.undo_delete_button.grid(row=1, column=0, sticky='nsew', pady=5, padx=5)
-        self.delete_select = ttk.Combobox(delete_frame, textvariable=self.delete_var, bootstyle='info')
-        self.delete_select['values']= tuple([str(ind.get())+'. '+label.get() for ind, label in zip(self.Table.table_df['index'],self.Table.table_df['name'])])
-        self.delete_select.grid(row=0, column=1, sticky='nsew', pady=5, padx=5)
 
     def add_row(self, log=True):
         """
@@ -423,40 +526,6 @@ class TablePanel(ttk.Frame):
         if log:
             self.master.Easel.command_add(("ADD_ROW"))
 
-    def delete_row(self, log=True):
-        """
-        Delete the row currently selected in the delete combobox.
-
-        Parameters
-        ----------
-        log : bool, optional
-            If ``True`` (default), records the operation in the undo history.
-        """
-        ind, label = self.delete_var.get().split('. ')
-        ind = int(ind)
-        command = ("DELETE", ind, label, self.Table.rows.copy(), self.Table.table_df.copy())
-        if log:
-            self.Easel.command_add(command)
-        self.Table.delete_row(ind, label)
-        self.undo_delete_button.config(state=tk.NORMAL)
-        self.delete_select['values']= tuple([str(ind.get())+'. '+label.get() for ind, label in zip(self.Table.table_df['index'],self.Table.table_df['name'])])
-
-    def undo_delete(self, index=None, label=None):
-        """
-        Restore the most recent (or specified) deleted row.
-
-        Parameters
-        ----------
-        index : int, optional
-            0-based index of the row to restore.
-        label : str, optional
-            ``'name'`` column value of the row to restore.
-        """
-        self.Table.undo_delete_row(index, label)
-        self.delete_select['values']= tuple([str(ind.get())+'. '+label.get() for ind, label in zip(self.Table.table_df['index'],self.Table.table_df['name'])])
-        if len(self.Table.deleted_rows) == 0:
-            self.undo_delete_button.config(state=tk.DISABLED)
-
     def apply_to_plasmid(self):
         """
         Flush table edits to the plasmid model and trigger a redraw.
@@ -466,105 +535,50 @@ class TablePanel(ttk.Frame):
         """
         self.Easel.PLASMID_DF = self.Table.update_table()
         self.Easel.update_plasmid()
-        self.undo_delete_button.config(state=tk.DISABLED)
-        self.delete_select['values']= tuple([str(ind.get())+'. '+label.get() for ind, label in zip(self.Table.table_df['index'],self.Table.table_df['name'])])
 
     def save_data(self):
         """
-        Save the current table data to a file.
-
-        .. note::
-            Not yet implemented.
+        Save the current table data to a CSV or TSV file.
+        
+        Opens a file dialog allowing the user to choose between CSV and TSV
+        formats. Saves all table data including show/hide visibility flags.
+        The file can be reloaded in future sessions.
         """
-        pass
-
-
-class RowPanel(ttk.Frame):
-    """
-    A panel that renders a column of delete buttons aligned with table rows.
-
-    One wastebasket button is shown per row in the associated ``DFTable``.
-    Clicking a button deletes the corresponding row and updates the undo log.
-
-    Parameters
-    ----------
-    master : TablePanel, optional
-        The parent ``TablePanel`` widget.
-
-    Attributes
-    ----------
-    Table : DFTable
-        Reference to the sibling ``DFTable`` widget.
-    buttons : list of ttk.Button
-        Delete buttons, one per row.
-    delete_icon : str
-        Unicode wastebasket emoji used as the button label.
-    """
-
-    def __init__(self, master: TablePanel =None):
-        """
-        Construct the delete-button column, one button per existing table row.
-
-        Parameters
-        ----------
-        master : TablePanel, optional
-            The parent widget, expected to expose a ``Table`` attribute of
-            type ``DFTable``.
-        """
-        super().__init__(master)
-        self.Table: DFTable = self.master.Table
-        if len(self.Table.table_df.columns) % 2:
-            bootstyle = 'info-inverse'
-        else:
-            bootstyle = 'info'
-        label = ttk.Label(self, text='delete?', bootstyle=bootstyle)
-        label.grid(row=0, column=0, sticky='nsew', pady=5, padx=5)
-        row_count = self.Table.table_df.shape[0]
-        self.buttons = []
-        self.delete_icon = Emoji.get("wastebasket")
-        for i in range(row_count):
-            delete_by_index = partial(self.delete_row, i)
-            button = ttk.Button(self, text=self.delete_icon, bootstyle=(INFO, OUTLINE),
-                                command=delete_by_index)
-            button.grid(row=i+1, column=0, sticky='nsew', pady=4, padx=5)
-            self.buttons.append(button)
-
-    def delete_row(self, index, log=True):
-        """
-        Delete the table row at *index* and optionally log the operation.
-
-        Parameters
-        ----------
-        index : int
-            0-based index of the row to delete.
-        log : bool, optional
-            If ``True`` (default), records the operation in the undo history.
-        """
-        row_name = self.Table.table_df.iloc[index]["name"].get()
-        command = ("DELETE", index, row_name, self.Table.rows.copy(), self.Table.table_df.copy())
-        row_count = self.Table.table_df.shape[0]
-        self.master.Table.delete_row(index+1, row_name)
-        self.buttons[row_count-1].grid_forget()
-        if log:
-            self.master.Easel.command_add(command)
-
-    def undo_delete_row(self, index, label, row=None, table=None):
-        """
-        Restore a previously deleted row and refresh the button column.
-
-        Parameters
-        ----------
-        index : int
-            0-based index of the row to restore.
-        label : str
-            ``'name'`` column value used to identify the target row.
-        row : list, optional
-            Row-list snapshot forwarded to ``DFTable.undo_delete_row``.
-        table : pd.DataFrame, optional
-            Table snapshot forwarded to ``DFTable.undo_delete_row``.
-        """
-        self.Table.undo_delete_row(index, label, row, table)
-        self.add_row()
+        if not self.Table or self.Easel.PLASMID_DF.empty:
+            messagebox.showwarning("No Data", "No feature data to save.")
+            return
+        
+        # Update table to get latest values
+        updated_df = self.Table.update_table()
+        
+        # Ask user for file format
+        format_choice = messagebox.askyesno(
+            "Save Format",
+            "Save as CSV?\n\nYes: CSV (comma-separated)\nNo: TSV (tab-separated)"
+        )
+        
+        # Set separator and file extension
+        separator = "," if format_choice else "\t"
+        file_ext = ".csv" if format_choice else ".tsv"
+        
+        # Open file save dialog
+        filename = filedialog.asksaveasfilename(
+            defaultextension=file_ext,
+            filetypes=[
+                ("CSV files", "*.csv") if format_choice else ("TSV files", "*.tsv"),
+                ("All files", "*.*")
+            ]
+        )
+        
+        if not filename:
+            return  # User cancelled
+        
+        try:
+            # Save to file without index
+            updated_df.to_csv(filename, sep=separator, index=False)
+            messagebox.showinfo("Success", f"Data saved to:\n{filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save file:\n{str(e)}")
 
     def add_row(self):
         """
@@ -645,7 +659,7 @@ class FeaturePanel(ttk.Frame):
         unique_types = sorted(self.Easel.PLASMID_DF['type'].unique())
 
         # Create a scrollable frame for many feature types
-        canvas = ttk.Canvas(self)
+        canvas = ttk.Canvas(self, height=200)
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
         scrollable_frame = ttk.Frame(canvas)
 
@@ -656,6 +670,11 @@ class FeaturePanel(ttk.Frame):
 
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Enable mouse wheel scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         # Create toggle for each type
         for idx, feature_type in enumerate(unique_types):
@@ -674,6 +693,7 @@ class FeaturePanel(ttk.Frame):
 
         canvas.grid(row=0, column=0, sticky='nsew', rowspan=2)
         scrollbar.grid(row=0, column=1, sticky='ns', rowspan=2)
+        self.rowconfigure(0, weight=1)
 
         # Add buttons
         select_all = ttk.Button(

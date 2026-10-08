@@ -175,6 +175,8 @@ class Plasmid:
 
     SUPPORTED_TICK_STYLES = ["auto", "none"]
     _DEFAULT_TICK_STYLE = "auto"
+    _DEFAULT_TITLE_FONT_SIZE: int = 14
+    _DEFAULT_MARKER_LABEL_FONT_SIZE: int = 7
 
     name: str = _DEFAULT_PLASMID_NAME
     base_pairs: int
@@ -195,6 +197,8 @@ class Plasmid:
     _tick_color: str = _DEFAULT_PLASMID_COLOR
     _feature_label_font_size: int = DEFAULT_LABEL_FONT_SIZE
     _feature_label_style: str = DEFAULT_LABEL_TEXT_STYLE
+    _title_font_size: int = _DEFAULT_TITLE_FONT_SIZE
+    _marker_label_font_size: int = _DEFAULT_MARKER_LABEL_FONT_SIZE
 
     def __init__(self, name: str, base_pairs: int) -> None:
         """
@@ -290,10 +294,10 @@ class Plasmid:
 
         multi_pair_features = [feature for feature in self.get_features() if issubclass(feature.__class__, MultiPairFeature)]
 
-        # Sorting gives the proper cascading effect when placing multipair features in orbit
-        # Also provides non-determinism, as otherwise the order in which features are added by the user
-        # impacts the layout.
-        sorted_multi_pair_features = sorted(multi_pair_features, key=lambda feature: feature.start_pair)
+        # Sort multi-pair features by size (largest first) to prioritize larger features in lower orbits
+        # This ensures larger features are placed in orbit 0 when possible, with smaller features pushed to higher orbits
+        # Tie-breaking by start position for consistent, deterministic placement
+        sorted_multi_pair_features = sorted(multi_pair_features, key=lambda feature: (-feature.length(), feature.start_pair))
         non_multi_pair_features = [feature for feature in self.get_features() if not issubclass(feature.__class__, MultiPairFeature)]
 
         if not self.get_feature_width() == self.get_plasmid_line_width():
@@ -424,7 +428,7 @@ class Plasmid:
         for degree in degrees_to_place_markers:
             x, y = ((self._center[0] + self._radius * self._marker_distance_sf * np.sin(np.deg2rad(degree))),
                     (self._center[1] + self._radius * self._marker_distance_sf * np.cos(np.deg2rad(degree))))
-            ax.text(x, y, s=f"{self._degrees_to_basepair(degree)}", horizontalalignment='center', fontstyle='italic', alpha=0.5, fontsize=7)
+            ax.text(x, y, s=f"{self._degrees_to_basepair(degree)}", horizontalalignment='center', fontstyle='italic', alpha=0.5, fontsize=self._marker_label_font_size)
 
     def _place_ticks_at_degrees(self, ax: Axes, degrees_to_place_ticks: list[float]) -> None:
         """
@@ -500,7 +504,7 @@ class Plasmid:
         # Make a horizontally aligned label in the center of the circle
         # Create bold plasmid name line and non-bold base pair line, using \bf math text
         plasmid_label_text = r"$\bf{" + self.name + "}$\n" + f"{self.base_pairs}bp"
-        ax.annotate(plasmid_label_text, xy=center, ha="center", va="center")
+        ax.annotate(plasmid_label_text, xy=center, ha="center", va="center", fontsize=self._title_font_size)
         ax.add_patch(plasmid_circle)
 
     def add_feature(self, feature: Feature) -> None:
@@ -954,6 +958,50 @@ class Plasmid:
             Label style used for plasmid features.
         """
         self._feature_label_style = feature_label_style
+
+    def get_title_font_size(self) -> int:
+        """
+        Get the font size of the plasmid title.
+
+        Returns
+        -------
+        title_font_size : int
+            The font size of the title used for the plasmid. Given as a pt value.
+        """
+        return self._title_font_size
+
+    def set_title_font_size(self, title_font_size: int) -> None:
+        """
+        Set the font size of the plasmid title.
+
+        Parameters
+        ----------
+        title_font_size : int
+            The font size of the title to set for the plasmid. Given as a pt value.
+        """
+        self._title_font_size = title_font_size
+
+    def get_marker_label_font_size(self) -> int:
+        """
+        Get the font size of the marker labels.
+
+        Returns
+        -------
+        marker_label_font_size : int
+            The font size of the marker labels used for the plasmid. Given as a pt value.
+        """
+        return self._marker_label_font_size
+
+    def set_marker_label_font_size(self, marker_label_font_size: int) -> None:
+        """
+        Set the font size of the marker labels.
+
+        Parameters
+        ----------
+        marker_label_font_size : int
+            The font size of the marker labels to set for the plasmid. Given as a pt value.
+        """
+        self._marker_label_font_size = marker_label_font_size
 
 #   TODO Add set feature label to include or disclude basepairs.
 

@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "plasmidcanvas"
+name = "plasmideasel"
 version = "1.0.0"
 description = "A graphics package for creating customised plasmid maps"
-authors = ["th0mr <thomrobinson76@gmail.com>"]
+authors = ["Penn Rainford <faulknerrainford@gmail.com", "th0mr <thomrobinson76@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/th0mr/plasmidcanvas"
+repository = "https://github.com/faulknerrainford/plasmideasel"
 keywords = ["plasmid", "plasmidmap", "biology", "microbiology"]
 
 [tool.poetry.dependencies]

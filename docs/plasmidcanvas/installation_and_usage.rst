@@ -35,7 +35,7 @@ Alternatively, if you want to send me an email please contact thom.robinson@york
 
 Prerequisites
 =============
-* Python 3.9 or higher is installed
+* Python 3.10 or higher is installed
 * Tcl/Tk (``tkinter``) is available. It is required by the PlasmidEasel GUI and is not installed by ``pip``:
 
   * **Windows:** included with the python.org installer (keep "tcl/tk and IDLE" ticked).

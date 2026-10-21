@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import MutableSequence
+from collections.abc import MutableSequence
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import ttkbootstrap as ttk
@@ -181,9 +182,7 @@ class PlasmidEasel(ttk.Window):
 
         self.table.load_data()
         self.features.load_data()
-        self.PLASMID = draw_plasmid(self.PLASMID_DF, self.plasmid_title.get(), self.plasmid_bps.get(),
-                                    self.plasmid_style.get())
-        self.redraw_plasmid()
+        self.table.apply_to_plasmid()
 
     def save_canvas(self):
         """

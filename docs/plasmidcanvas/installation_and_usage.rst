@@ -36,6 +36,16 @@ Alternatively, if you want to send me an email please contact thom.robinson@york
 Prerequisites
 =============
 * Python 3.9 or higher is installed
+* Tcl/Tk (``tkinter``) is available. It is required by the PlasmidEasel GUI and is not installed by ``pip``:
+
+  * **Windows:** included with the python.org installer (keep "tcl/tk and IDLE" ticked).
+  * **macOS:** included with the python.org installer. With Homebrew Python run ``brew install python-tk@3.x`` (matching your Python version). Avoid the Apple system Python, which ships an obsolete Tk.
+  * **Linux:** usually a separate package. Debian/Ubuntu: ``sudo apt install python3-tk``; Fedora: ``sudo dnf install python3-tkinter``; Arch: ``sudo pacman -S tk``. A display (X11, or Wayland with XWayland) is also needed.
+
+  To check Tk is available run ``python -m tkinter``, which should open a small test window.
+
+.. note::
+   Only the PlasmidEasel GUI needs Tk and a display. Plasmid maps can be drawn headlessly with matplotlib's ``Agg`` backend.
 
 Installation
 ============

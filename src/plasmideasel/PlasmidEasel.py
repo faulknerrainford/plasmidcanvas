@@ -571,10 +571,13 @@ class TablePanel(ttk.Frame):
         
         if not filename:
             return  # User cancelled
-        
+
         try:
-            # Save to file without index
-            updated_df.to_csv(filename, sep=separator, index=False)
+            # Title and length lines come first so the file can be reopened; the loader keeps only the first word of the title
+            title = "_".join(self.Easel.plasmid_title.get().split()) or "plasmid"
+            with open(filename, mode='w', newline='') as file:
+                file.write(f"{title}\n{self.Easel.plasmid_bps.get()}\n")
+                updated_df.to_csv(file, sep=separator, index=False, lineterminator='\n')
             messagebox.showinfo("Success", f"Data saved to:\n{filename}")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save file:\n{str(e)}")

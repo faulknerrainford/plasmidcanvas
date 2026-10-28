@@ -9,13 +9,11 @@ editing plasmid maps from CSV, TSV or GenBank files.
    :caption: Getting Started
 
    getting_started/installation
-   getting_started/quickstart
 
 .. toctree::
    :maxdepth: 2
    :caption: User Guide
 
-   user_guide/interface_overview
    user_guide/opening_files
    user_guide/editing_features
    user_guide/styles

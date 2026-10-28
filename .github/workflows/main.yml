@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Enter version (eg. 1.0.0)"
+        description: "Enter version (eg. v1.0.0)"
         required: true
 
 jobs:
@@ -20,15 +20,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install pyinstaller matplotlib ttkbootstrap pandas biopython
 
       - name: Build executable
-        run: pyinstaller --onefile /src/plasmideasel/PlasmidEasel.py
+        run: pyinstaller --onefile src/plasmideasel/PlasmidEasel.py
 
       - name: Rename executable
         run: |
@@ -50,10 +50,12 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
